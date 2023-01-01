@@ -6,5 +6,6 @@ int main(void)
 {
     Board board;
     board_parsefen(&board, sfen);
+    board_display(&board);
     return 0;
 }

@@ -45,3 +45,34 @@ void board_parsefen(Board *board, char *fen)
     board->piecebb[EMPTY] = ~board->colorbb[BOTH];
     board->side = side == 'w' ? WHITE : BLACK;
 }
+
+/**
+ * board_display
+ *  Print the current board position.
+ */
+void board_display(Board *board)
+{
+    int rank, file, sq;
+    int color, type;
+
+    printf("   +---+---+---+---+---+---+---+---+\n");
+    for (rank = 7; rank >= 0; --rank) {
+        printf(" %d ", rank + 1);
+        for (file = 0; file < 8; ++file) {
+            sq = 8 * rank + file;
+            printf("|");
+            if (board->colorbb[BOTH] & (1ull << sq)) {
+                color = board->colorbb[WHITE] & (1ull << sq) ? WHITE : BLACK;
+                color *= 8;
+                type = 1;
+                while (!(board->piecebb[type] & (1ull << sq)))
+                    ++type;
+                printf(" %c ", ptypes[color + type]);
+            } else {
+                printf("   ");
+            }
+        }
+        printf("|\n   +---+---+---+---+---+---+---+---+\n");
+    }
+    printf("     a   b   c   d   e   f   g   h\n");
+}

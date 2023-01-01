@@ -16,5 +16,6 @@ struct board {
 };
 
 void board_parsefen(Board *board, char *fen);
+void board_display(Board *board);
 
 #endif  /* BOARD_H */
