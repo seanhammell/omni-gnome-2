@@ -2,6 +2,8 @@
 
 #include "board.h"
 
+#define FILE_A 0x101010101010101ull
+
 /* get information for making a move */
 #define from(x)     (x & 63)
 #define to(x)       ((x >> 6) & 63)
@@ -22,10 +24,34 @@
 typedef struct tables Tables;
 
 struct tables {
+    U64 knight_moves[64];
     U64 rays[8][256];
 };
 
 static Tables tables;
+
+/**
+ * initknights
+ *  initialize the knight moves lookup table
+ */
+void initknights()
+{
+    int i;
+    U64 bit, east, west, set, moves;
+
+    for (i = 0, bit = 1; i < 64; ++i, bit <<= 1) {
+        moves = 0;
+        east = bit & (FILE_A << 7) ? 0 : bit << 1;
+        west = bit & FILE_A ? 0 : bit >> 1;
+        set = east | west;
+        moves |= set << 16 | set >> 16;
+        east = bit & (FILE_A << 6) ? 0 : east << 1;
+        west = bit & (FILE_A << 1) ? 0 : west >> 1;
+        set = east | west;
+        moves |= set << 8 | set >> 8;
+        tables.knight_moves[i] = moves;
+    }
+}
 
 /**
  * initrays
@@ -35,6 +61,7 @@ void initrays()
 {
     int bit, i, occ, left, right;
     U64 ray;
+
     for (i = 0, bit = 1; i < 8; ++i, bit <<= 1) {
         for (occ = 0; occ < 256; ++occ) {
             ray = 0;
@@ -63,6 +90,7 @@ void initrays()
  */
 void board_inittables()
 {
+    initknights();
     initrays();
 }
 
