@@ -382,3 +382,20 @@ U64 slide000(Board *board, int i)
     ray &= ~board->colorbb[board->side];
     return ray;
 }
+
+/**
+ * slide045
+ *  compute diagonal sliding attacks
+ */
+U64 slide045(Board *board, int i)
+{
+    U64 occ, ray;
+
+    occ = tables.diag_masks[i] & board->colorbb[BOTH];
+    occ *= tables.file_masks[0];
+    occ >>= 56;
+    ray = tables.rays[i & 7][occ] * tables.file_masks[0];
+    ray &= tables.diag_masks[i];
+    ray &= ~board->colorbb[board->side];
+    return ray;
+}
