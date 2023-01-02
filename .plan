@@ -1,0 +1,24 @@
+Omni-Gnome 2.0
+
+Phase 1: Board Representation
+
+Board 
++ --- Initialize a position
+|     + --- FEN parsing
+|     + --- Display
++ --- Make/Unmake moves
++ --- Generate all legal moves
+|     + --- Initialize lookup tables
+|     + --- Kindergarten bitboard calculations
+|     |     + --- Horizontal
+|     |     + --- Main Diagonal
+|     |     + --- Vertical
+|     |     + --- Anti Diagonal
+|     + --- Danger squares
+|     + --- Pinned pieces
+|     + --- Serialize target boards
+|     + --- Test Legality
+|     |     + --- En passant
+|     |     + --- King moves
+|     |     + --- All other pieces/moves
+
