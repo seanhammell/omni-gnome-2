@@ -25,6 +25,7 @@ typedef struct tables Tables;
 
 struct tables {
     U64 knight_moves[64];
+    U64 king_moves[64];
     U64 rays[8][256];
 };
 
@@ -50,6 +51,25 @@ void initknights()
         set = east | west;
         moves |= set << 8 | set >> 8;
         tables.knight_moves[i] = moves;
+    }
+}
+
+/**
+ * initkings
+ *  initialize the king moves lookup table
+ */
+void initkings()
+{
+    int i;
+    U64 bit, east, west, set, moves;
+
+    for (i = 0, bit = 1; i < 64; ++i, bit <<= 1) {
+        east = bit & (FILE_A << 7) ? 0 : bit << 1;
+        west = bit & FILE_A ? 0 : bit >> 1;
+        set = east | bit | west;
+        moves = set << 8 | set | set >> 8;
+        moves ^= bit;
+        tables.king_moves[i] = moves;
     }
 }
 
@@ -91,6 +111,7 @@ void initrays()
 void board_inittables()
 {
     initknights();
+    initkings();
     initrays();
 }
 
