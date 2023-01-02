@@ -56,15 +56,27 @@ U64 filemask(int i)
 
 /**
  * diagmask
- *  compute the diagonal or anti-diagonal mask for the given square
+ *  compute the diagonal mask for the given square
  */
-U64 diagmask(int i, int anti)
+U64 diagmask(int i)
 {
     int diag, north, south;
     const U64 DIAG = 0x8040201008040201;
     diag = 8 * (i & 7) - (i & 56);
-    if (anti)
-        diag = 56 - diag;
+    north = -diag & (diag >> 31);
+    south = diag & (-diag >> 31);
+    return (DIAG >> south) << north;
+}
+
+/**
+ * antimask
+ *  compute the anti-diagonal mask for the given square
+ */
+U64 antimask(int i)
+{
+    int diag, north, south;
+    const U64 DIAG = 0x0102040810204080;
+    diag = 56 - 8 * (i & 7) - (i & 56);
     north = -diag & (diag >> 31);
     south = diag & (-diag >> 31);
     return (DIAG >> south) << north;
@@ -81,8 +93,8 @@ void initmasks()
     for (i = 0; i < 63; ++i) {
         tables.rank_masks[i] = rankmask(i);
         tables.file_masks[i] = filemask(i);
-        tables.diag_masks[i] = diagmask(i, 0);
-        tables.anti_masks[i] = diagmask(i, 1);
+        tables.diag_masks[i] = diagmask(i);
+        tables.anti_masks[i] = antimask(i);
     }
 }
 
@@ -396,6 +408,25 @@ U64 slide045(Board *board, int i)
     occ >>= 56;
     ray = tables.rays[i & 7][occ] * tables.file_masks[0];
     ray &= tables.diag_masks[i];
+    ray &= ~board->colorbb[board->side];
+    return ray;
+}
+
+/**
+ * slide 090
+ *  compute file sliding attacks
+ */
+U64 slide090(Board *board, int i)
+{
+    U64 occ, ray;
+
+    occ = tables.file_masks[i] & board->colorbb[BOTH];
+    occ >>= i & 7;
+    occ *= tables.diag_masks[0];
+    occ >>= 56;
+    ray = tables.rays[(i ^ 56) >> 3][occ] * tables.diag_masks[0];
+    ray &= tables.file_masks[7];
+    ray >>= (i & 7) ^ 7;
     ray &= ~board->colorbb[board->side];
     return ray;
 }
