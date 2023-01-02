@@ -7,19 +7,20 @@ int main(void)
     Board board;
     board_parsefen(&board, sfen);
 
-    Move move;
-    move.info = 12 | (28 << 6);
-    move.attacker = PAWN;
-    move.target = EMPTY;
-    board_make(&board, &move);
-    move.info = 51 | (35 << 6);
-    move.attacker = PAWN;
-    move.target = EMPTY;
-    board_make(&board, &move);
-    move.info = 28 | (35 << 6);
-    move.attacker = PAWN;
-    move.target = PAWN;
-    board_make(&board, &move);
+    MoveInfo minfo;
+    minfo.move = 12 | (28 << 6);
+    minfo.attacker = PAWN;
+    minfo.target = EMPTY;
+    board_make(&board, &minfo);
+    minfo.move = 51 | (35 << 6);
+    minfo.attacker = PAWN;
+    minfo.target = EMPTY;
+    board_make(&board, &minfo);
+    minfo.move = 28 | (35 << 6);
+    minfo.attacker = PAWN;
+    minfo.target = PAWN;
+    board_make(&board, &minfo);
+    board_unmake(&board, &minfo);
 
     board_display(&board);
     return 0;

@@ -11,7 +11,7 @@ typedef enum pieces Piece;
 typedef enum castling Castling;
 
 typedef struct board Board;
-typedef struct move Move;
+typedef struct minfo MoveInfo;
 
 enum colors { WHITE, BLACK, BOTH };
 enum pieces { EMPTY, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING };
@@ -40,14 +40,17 @@ struct board {
     int movenb;
 };
 
-struct move {
-    U16 info;
+struct minfo {
     Piece attacker;
     Piece target;
+    U16 move;
+    U16 undo;
 };
 
 void board_parsefen(Board *board, char *fen);
 void board_display(Board *board);
-void board_make(Board *board, Move *move);
+
+void board_make(Board *board, MoveInfo *minfo);
+void board_unmake(Board *board, MoveInfo *minfo);
 
 #endif  /* BOARD_H */
