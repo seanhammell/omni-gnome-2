@@ -21,21 +21,26 @@ static const char pchars[] = " PNBRQK??pnbrqk";
  */
 void board_parsefen(Board *board, char *fen)
 {
-    char c, pos[128], side;
+    char c, pos[128], side, castle[5], ep[3];
+    int rule50, movenb;
     int i, rank, file, sq;
     Color color;
     Piece piece;
 
-    sscanf(fen, "%s %c", pos, &side);
+    rule50 = 0;
+    movenb = 1;
+    sscanf(fen, "%s %c %s %s %d %d", pos, &side, castle, ep, &rule50, &movenb);
 
     for (i = 0; i < 3; ++i)
         board->colorbb[i] = 0;
     for (i = 0; i < 7; ++i)
         board->piecebb[i] = 0;
+    board->castling = NO_CASTLE;
+    board->eptarget = 64;
 
-    i = file = 0;
+    file = 0;
     rank = 7;
-    while ((c = pos[i++])) {
+    for (i = 0; (c = pos[i]); ++i) {
         if (c == '/') {
             --rank;
             file = 0;
@@ -56,6 +61,26 @@ void board_parsefen(Board *board, char *fen)
     board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
     board->piecebb[EMPTY] = ~board->colorbb[BOTH];
     board->side = side == 'w' ? WHITE : BLACK;
+    for(i = 0; (c = castle[i]); ++i) {
+        switch (c) {
+            case 'K':
+                board->castling |= WHITE_OO;
+                break;
+            case 'Q':
+                board->castling |= WHITE_OOO;
+                break;
+            case 'k':
+                board->castling |= BLACK_OO;
+                break;
+            case 'q':
+                board->castling |= BLACK_OOO;
+                break;
+        }
+    }
+    if (ep[0] != '-')
+        board->eptarget = 8 * (ep[1] - '1') + (ep[0] - 'a');
+    board->rule50 = rule50;
+    board->movenb = movenb;
 }
 
 /**
@@ -68,7 +93,7 @@ void board_display(Board *board)
     Color color;
     Piece piece;
 
-    printf("   +---+---+---+---+---+---+---+---+\n");
+    printf("\n   +---+---+---+---+---+---+---+---+\n");
     for (rank = 7; rank >= 0; --rank) {
         printf(" %d ", rank + 1);
         for (file = 0; file < 8; ++file) {
@@ -88,6 +113,27 @@ void board_display(Board *board)
         printf("|\n   +---+---+---+---+---+---+---+---+\n");
     }
     printf("     a   b   c   d   e   f   g   h\n");
+    printf("\nside: %c", board->side == WHITE ? 'w' : 'b');
+    printf("\ncastling: ");
+    if (board->castling == NO_CASTLE)
+        printf("-");
+    else {
+        if (board->castling & WHITE_OO)
+            printf("K");
+        if (board->castling & WHITE_OOO)
+            printf("Q");
+        if (board->castling & BLACK_OO)
+            printf("k");
+        if (board->castling & BLACK_OOO)
+            printf("q");
+    }
+    printf("\nen passant: ");
+    if (board->eptarget == 64)
+        printf("-");
+    else
+        printf("%d", board->eptarget);
+    printf("\nhalfmove clock: %d", board->rule50);
+    printf("\nfullmove number: %d\n\n", board->movenb);
 }
 
 /**
@@ -106,6 +152,12 @@ void board_make(Board *board, Move *move)
     promo = promo(move->info);
     attacker = move->attacker;
     target = move->target;
+
+    board->movenb += board->side;
+    if (attacker == PAWN || target != EMPTY)
+        board->rule50 = 0;
+    else
+        ++board->rule50;
 
     board->piecebb[target] &= ~to;
     board->piecebb[attacker] ^= from | to;
