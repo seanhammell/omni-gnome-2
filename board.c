@@ -94,16 +94,15 @@ void initknights()
 {
     int i;
     U64 bit, east, west, set, moves;
-    const U64 FILE_A =  0x101010101010101;
 
     for (i = 0, bit = 1; i < 64; ++i, bit <<= 1) {
         moves = 0;
-        east = bit & (FILE_A << 7) ? 0 : bit << 1;
-        west = bit & FILE_A ? 0 : bit >> 1;
+        east = bit & tables.file_masks[7] ? 0 : bit << 1;
+        west = bit & tables.file_masks[0] ? 0 : bit >> 1;
         set = east | west;
         moves |= set << 16 | set >> 16;
-        east = bit & (FILE_A << 6) ? 0 : east << 1;
-        west = bit & (FILE_A << 1) ? 0 : west >> 1;
+        east = bit & tables.file_masks[6] ? 0 : east << 1;
+        west = bit & tables.file_masks[1] ? 0 : west >> 1;
         set = east | west;
         moves |= set << 8 | set >> 8;
         tables.knight_moves[i] = moves;
@@ -118,11 +117,10 @@ void initkings()
 {
     int i;
     U64 bit, east, west, set, moves;
-    const U64 FILE_A =  0x101010101010101;
 
     for (i = 0, bit = 1; i < 64; ++i, bit <<= 1) {
-        east = bit & (FILE_A << 7) ? 0 : bit << 1;
-        west = bit & FILE_A ? 0 : bit >> 1;
+        east = bit & tables.file_masks[7] ? 0 : bit << 1;
+        west = bit & tables.file_masks[0] ? 0 : bit >> 1;
         set = east | bit | west;
         moves = set << 8 | set | set >> 8;
         moves ^= bit;
@@ -366,4 +364,21 @@ void board_unmake(Board *board, MoveInfo *minfo)
 
     if (board->side == BLACK)
         --board->movenb;
+}
+
+/**
+ * slide000
+ *  compute horizontal sliding attacks
+ */
+U64 slide000(Board *board, int i)
+{
+    U64 occ, ray;
+
+    occ = tables.rank_masks[i] & board->colorbb[BOTH];
+    occ *= tables.file_masks[0];
+    occ >>= 56;
+    ray = tables.rays[i & 7][occ] * tables.file_masks[0];
+    ray &= tables.rank_masks[i];
+    ray &= ~board->colorbb[board->side];
+    return ray;
 }
