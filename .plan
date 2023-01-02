@@ -14,9 +14,10 @@ Board
 |     |     + --- Main Diagonal
 |     |     + --- Vertical
 |     |     + --- Anti Diagonal
+|     + --- Target boards
+|     + --- Serialize target boards
 |     + --- Danger squares
 |     + --- Pinned pieces
-|     + --- Serialize target boards
 |     + --- Test Legality
 |     |     + --- En passant
 |     |     + --- King moves

@@ -413,7 +413,7 @@ U64 slide045(Board *board, int i)
 }
 
 /**
- * slide 090
+ * slide090
  *  compute file sliding attacks
  */
 U64 slide090(Board *board, int i)
@@ -427,6 +427,23 @@ U64 slide090(Board *board, int i)
     ray = tables.rays[(i ^ 56) >> 3][occ] * tables.diag_masks[0];
     ray &= tables.file_masks[7];
     ray >>= (i & 7) ^ 7;
+    ray &= ~board->colorbb[board->side];
+    return ray;
+}
+
+/**
+ * slide135
+ *  compute anti-diagonal sliding attacks
+ */
+U64 slide135(Board *board, int i)
+{
+    U64 occ, ray;
+
+    occ = tables.anti_masks[i] & board->colorbb[BOTH];
+    occ *= tables.file_masks[0];
+    occ >>= 56;
+    ray = tables.rays[i & 7][occ] * tables.file_masks[0];
+    ray &= tables.anti_masks[i];
     ray &= ~board->colorbb[board->side];
     return ray;
 }
