@@ -19,7 +19,52 @@
 /* set information for unmaking a move */
 #define undo(r, e, c)   (r | (e << 6) | (c << 12))
 
-static const char pchars[] = " PNBRQK??pnbrqk";
+typedef struct tables Tables;
+
+struct tables {
+    U64 rays[8][256];
+};
+
+static Tables tables;
+
+/**
+ * initrays
+ *  initialize the ray lookup table for kindergarten bitboard calculations
+ */
+void initrays()
+{
+    int bit, i, occ, left, right;
+    U64 ray;
+    for (i = 0, bit = 1; i < 8; ++i, bit <<= 1) {
+        for (occ = 0; occ < 256; ++occ) {
+            ray = 0;
+            left = bit >> 1;
+            while (left) {
+                ray |= left;
+                if (left & occ)
+                    break;
+                left >>= 1;
+            }
+            right = bit << 1;
+            while (right < 256) {
+                ray |= right;
+                if (right & occ)
+                    break;
+                right <<= 1;
+            }
+            tables.rays[i][occ] = ray;
+        }
+    }
+}
+
+/**
+ * board_inittables
+ *  Call table initialization functions
+ */
+void board_inittables()
+{
+    initrays();
+}
 
 /**
  * board_parsefen
@@ -28,6 +73,7 @@ static const char pchars[] = " PNBRQK??pnbrqk";
 void board_parsefen(Board *board, char *fen)
 {
     char c, pos[128], side, castle[5], ep[3];
+    const char pchars[] = " PNBRQK??pnbrqk";
     int rule50, movenb;
     int i, rank, file, sq;
     Color color;
@@ -95,6 +141,7 @@ void board_parsefen(Board *board, char *fen)
  */
 void board_display(Board *board)
 {
+    const char pchars[] = " PNBRQK??pnbrqk";
     int rank, file, sq;
     Color color;
     Piece piece;

@@ -47,6 +47,8 @@ struct minfo {
     U16 undo;
 };
 
+void board_inittables();
+
 void board_parsefen(Board *board, char *fen);
 void board_display(Board *board);
 
