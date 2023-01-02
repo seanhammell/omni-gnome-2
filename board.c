@@ -2,8 +2,6 @@
 
 #include "board.h"
 
-#define FILE_A 0x101010101010101ull
-
 /* get information for making a move */
 #define from(x)     (x & 63)
 #define to(x)       ((x >> 6) & 63)
@@ -24,12 +22,69 @@
 typedef struct tables Tables;
 
 struct tables {
+    U64 rank_masks[64];
+    U64 file_masks[64];
+    U64 diag_masks[64];
+    U64 anti_masks[64];
+
     U64 knight_moves[64];
     U64 king_moves[64];
     U64 rays[8][256];
 };
 
 static Tables tables;
+
+/**
+ * rankmask
+ *  compute the rank mask for the given square
+ */
+U64 rankmask(int i)
+{
+    const U64 RANK_1 = 0xff;
+    return RANK_1 << (i & 56);
+}
+
+/**
+ * filemask
+ *  compute the file mask for the given square
+ */
+U64 filemask(int i)
+{
+    const U64 FILE_A = 0x101010101010101;
+    return FILE_A << (i & 7);
+}
+
+/**
+ * diagmask
+ *  compute the diagonal or anti-diagonal mask for the given square
+ */
+U64 diagmask(int i, int anti)
+{
+    int diag, north, south;
+    const U64 DIAG = 0x8040201008040201;
+    diag = 8 * (i & 7) - (i & 56);
+    if (anti)
+        diag = 56 - diag;
+    north = -diag & (diag >> 31);
+    south = diag & (-diag >> 31);
+    return (DIAG >> south) << north;
+}
+
+/**
+ * initmasks
+ *  initialize line masks for each square in each direction
+ */
+void initmasks()
+{
+    int i;
+
+    for (i = 0; i < 63; ++i) {
+        tables.rank_masks[i] = rankmask(i);
+        tables.file_masks[i] = filemask(i);
+        tables.diag_masks[i] = diagmask(i, 0);
+        tables.anti_masks[i] = diagmask(i, 1);
+    }
+}
 
 /**
  * initknights
@@ -39,6 +94,7 @@ void initknights()
 {
     int i;
     U64 bit, east, west, set, moves;
+    const U64 FILE_A =  0x101010101010101;
 
     for (i = 0, bit = 1; i < 64; ++i, bit <<= 1) {
         moves = 0;
@@ -62,6 +118,7 @@ void initkings()
 {
     int i;
     U64 bit, east, west, set, moves;
+    const U64 FILE_A =  0x101010101010101;
 
     for (i = 0, bit = 1; i < 64; ++i, bit <<= 1) {
         east = bit & (FILE_A << 7) ? 0 : bit << 1;
@@ -110,6 +167,7 @@ void initrays()
  */
 void board_inittables()
 {
+    initmasks();
     initknights();
     initkings();
     initrays();
