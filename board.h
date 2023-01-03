@@ -39,7 +39,10 @@ struct board {
     int rule50;
     int movenb;
 
-    U64 danger;
+    U64 pins000;
+    U64 seen;
+    U64 checkmask;
+    int nchecks;
 };
 
 struct minfo {
@@ -53,6 +56,8 @@ void board_inittables();
 
 void board_parsefen(Board *board, char *fen);
 void board_display(Board *board);
+
+void setdanger(Board *board);
 
 void board_make(Board *board, MoveInfo *minfo);
 void board_unmake(Board *board, MoveInfo *minfo);

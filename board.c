@@ -337,6 +337,83 @@ U64 slide000(Board *board, int i)
 }
 
 /**
+ * pins000
+ *  compute the horizontal pin mask
+ */
+void pins000(Board *board)
+{
+    int i;
+    U64 king, sliders, pin;
+    U64 kingray, enemyray;
+
+    board->pins000 = 0;
+
+    king = board->piecebb[KING] & board->colorbb[board->side];
+    sliders = board->piecebb[ROOK] | board->piecebb[QUEEN];
+    sliders &= board->colorbb[board->side ^ 1];
+
+    i = lsb(king);
+    kingray = slide000(board, i);
+    while(sliders) {
+        i = pullbit(&sliders);
+        enemyray = slide000(board, i);
+        pin = kingray & enemyray & board->colorbb[board->side];
+        if (pin)
+            board->pins000 |= (slide000(board, lsb(pin)) | pin) ^ king;
+    }
+}
+
+/**
+ * seen000
+ *  compute the horizontal squares seen by the enemy
+ */
+void seen000(Board *board)
+{
+    int i;
+    U64 king, sliders;
+
+    board->seen = 0;
+
+    king = board->piecebb[KING] & board->colorbb[board->side];
+    sliders = board->piecebb[ROOK] | board->piecebb[QUEEN];
+    sliders &= board->colorbb[board->side ^ 1];
+
+    board->colorbb[BOTH] ^= king;
+    while(sliders) {
+        i = pullbit(&sliders);
+        board->seen |= slide000(board, i);
+    }
+    board->colorbb[BOTH] ^= king;
+}
+
+/**
+ * checks000
+ *  compute the horizontal check mask
+ */
+void checks000(Board *board)
+{
+    int i;
+    U64 king, sliders;
+    U64 kingray, enemyray;
+
+    board->checkmask = 0;
+
+    king = board->piecebb[KING] & board->colorbb[board->side];
+    sliders = board->piecebb[ROOK] | board->piecebb[QUEEN];
+    sliders &= board->colorbb[board->side ^ 1];
+
+    i = lsb(king);
+    kingray = slide000(board, i);
+    sliders &= kingray;
+    while(sliders) {
+        i = pullbit(&sliders);
+        enemyray = slide000(board, i);
+        board->checkmask |= (kingray & enemyray) | (1ull << i);
+        ++board->nchecks;
+    }
+}
+
+/**
  * slide045
  *  compute diagonal sliding attacks
  */
@@ -386,6 +463,18 @@ U64 slide135(Board *board, int i)
     return ray;
 }
 
+void setdanger(Board *board)
+{
+    board->pins000 = 0;
+    board->seen = 0;
+    board->checkmask = 0;
+    board->nchecks = 0;
+
+    pins000(board);
+    seen000(board);
+    checks000(board);
+}
+
 /**
  * knighttargets
  *  return a bitboard of knight targets from the given square
@@ -429,41 +518,6 @@ U64 queentargets(Board *board, int i)
 U64 kingtargets(Board *board, int i)
 {
     return tables.king_moves[i];
-}
-
-/**
- * dangersquares
- *  Add the target squares for the specified enemy piece to the king danger
- *  board
- */
-void dangersquares(Board *board, Piece piece, U64 (*targets)(Board *b, int i))
-{
-    U64 bb, i;
-
-    bb = board->piecebb[piece] & board->colorbb[board->side ^ 1];
-    while (bb) {
-        i = pullbit(&bb);
-        board->danger |= targets(board, i);
-    } 
-}
-
-/**
- * setdanger
- *  Set the king danger board for the current position
- */
-void setdanger(Board *board)
-{
-    U64 king;
-
-    board->danger = 0;
-    king = board->piecebb[KING] & board->colorbb[board->side];
-    board->colorbb[BOTH] ^= king;
-    dangersquares(board, KNIGHT, &knighttargets);
-    dangersquares(board, BISHOP, &bishoptargets);
-    dangersquares(board, ROOK, &rooktargets);
-    dangersquares(board, QUEEN, &queentargets);
-    dangersquares(board, KING, &kingtargets);
-    board->colorbb[BOTH] |= king;
 }
 
 /**
