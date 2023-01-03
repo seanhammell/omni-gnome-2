@@ -310,75 +310,14 @@ void board_display(Board *board)
 }
 
 /**
- * board_make
- *  Play the move, updating all relevant board information
+ * pullbit
+ *  pop the lsb from the board and return it's index
  */
-void board_make(Board *board, MoveInfo *minfo)
+int pullbit(U64 *bb)
 {
-    U64 from, to;
-    int flags, promo;
-    Piece attacker, target;
-
-    from = 1ull << from(minfo->move);
-    to = 1ull << to(minfo->move);
-    flags = flags(minfo->move);
-    promo = promo(minfo->move);
-    attacker = minfo->attacker;
-    target = minfo->target;
-    minfo->undo = undo(board->rule50, board->eptarget, board->castling);
-
-    if (board->side == BLACK)
-        ++board->movenb;
-
-    if (attacker == PAWN || target != EMPTY)
-        board->rule50 = 0;
-    else
-        ++board->rule50;
-
-    board->piecebb[target] &= ~to;
-    board->piecebb[attacker] ^= from | to;
-    board->colorbb[board->side ^ 1] &= ~to;
-    board->colorbb[board->side] ^= from | to;
-    board->side ^= 1;
-
-    board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
-    board->piecebb[EMPTY] = ~board->colorbb[BOTH];
-}
-
-/**
- * board_unmake
- *  Undo the move, resetting all relevant board information
- */
-void board_unmake(Board *board, MoveInfo *minfo)
-{
-    U64 from, to;
-    int flags, promo, rule50, eptarget;
-    Piece attacker, target;
-    Castling castling;
-
-    from = 1ull << from(minfo->move);
-    to = 1ull << to(minfo->move);
-    flags = flags(minfo->move);
-    promo = promo(minfo->move);
-    attacker = minfo->attacker;
-    target = minfo->target;
-    rule50 = rule50(minfo->undo);
-    eptarget = eptarget(minfo->undo);
-    castling = castling(minfo->undo);
-
-    board->side ^= 1;
-    board->colorbb[board->side] ^= from | to;
-    board->colorbb[board->side ^ 1] |= to;
-    board->piecebb[attacker] ^= from | to;
-    board->piecebb[target] |= to;
-
-    board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
-    board->piecebb[EMPTY] = ~board->colorbb[BOTH];
-
-    board->rule50 = rule50;
-
-    if (board->side == BLACK)
-        --board->movenb;
+    int i = lsb(*bb);
+    *bb &= *bb - 1;
+    return i;
 }
 
 /**
@@ -448,101 +387,153 @@ U64 slide135(Board *board, int i)
 }
 
 /**
- * knight_targets
+ * knighttargets
  *  return a bitboard of knight targets from the given square
  */
-U64 knight_targets(Board *board, int i, Color side)
+U64 knighttargets(Board *board, int i)
 {
-    return tables.knight_moves[i] & ~board->colorbb[side];
+    return tables.knight_moves[i];
 }
 
 /**
- * bishop_targets
+ * bishoptargets
  *  return a bitboard of bishop targets from the given square
  */
-U64 bishop_targets(Board *board, int i, Color side)
+U64 bishoptargets(Board *board, int i)
 {
-    U64 rays;
-
-    rays = slide045(board, i) | slide135(board, i);
-    rays &= ~board->colorbb[side];
-    return rays;
+    return slide045(board, i) | slide135(board, i);
 }
 
 /**
- * rook_targets
+ * rooktargets
  *  return a bitboard of rook targets from the given square
  */
-U64 rook_targets(Board *board, int i, Color side)
+U64 rooktargets(Board *board, int i)
 {
-    U64 rays;
-
-    rays = slide000(board, i) | slide090(board, i);
-    rays &= ~board->colorbb[side];
-    return rays;
+    return slide000(board, i) | slide090(board, i);
 }
 
 /**
- * queen_targets
+ * queentargets
  *  return a bitboard of queen targets from the given square
  */
-U64 queen_targets(Board *board, int i, Color side)
+U64 queentargets(Board *board, int i)
 {
-    return bishop_targets(board, i, side) | rook_targets(board, i, side);
+    return bishoptargets(board, i) | rooktargets(board, i);
 }
 
 /**
- * king_targets
+ * kingtargets
  *  return a bitboard of king targets from the given square
  */
-U64 king_targets(Board *board, int i, Color side)
+U64 kingtargets(Board *board, int i)
 {
-    return tables.king_moves[i] & ~board->colorbb[side];
+    return tables.king_moves[i];
 }
 
 /**
- * pullbit
- *  pop the lsb from the board and return it's index
- */
-int pullbit(U64 *bb)
-{
-    int i = lsb(*bb);
-    *bb &= *bb - 1;
-    return i;
-}
-
-/**
- * danger_squares
- *  Add the target squares for the specified enemy piece to the king_danger
+ * dangersquares
+ *  Add the target squares for the specified enemy piece to the king danger
  *  board
  */
-void danger_squares(Board *board, Piece piece,
-                    U64 (*targets)(Board *board, int i, Color side))
+void dangersquares(Board *board, Piece piece, U64 (*targets)(Board *b, int i))
 {
     U64 bb, i;
 
     bb = board->piecebb[piece] & board->colorbb[board->side ^ 1];
     while (bb) {
         i = pullbit(&bb);
-        board->king_danger |= targets(board, i, board->side ^ 1);
+        board->danger |= targets(board, i);
     } 
 }
 
 /**
  * setdanger
- *  Set the king_danger board for the current position
+ *  Set the king danger board for the current position
  */
 void setdanger(Board *board)
 {
-    U64 ally_king;
+    U64 king;
 
-    board->king_danger = 0;
-    ally_king = board->piecebb[KING] & board->colorbb[board->side];
-    board->colorbb[BOTH] ^= ally_king;
-    danger_squares(board, KNIGHT, &knight_targets);
-    danger_squares(board, BISHOP, &bishop_targets);
-    danger_squares(board, ROOK, &rook_targets);
-    danger_squares(board, QUEEN, &queen_targets);
-    danger_squares(board, KING, &king_targets);
-    board->colorbb[BOTH] |= ally_king;
+    board->danger = 0;
+    king = board->piecebb[KING] & board->colorbb[board->side];
+    board->colorbb[BOTH] ^= king;
+    dangersquares(board, KNIGHT, &knighttargets);
+    dangersquares(board, BISHOP, &bishoptargets);
+    dangersquares(board, ROOK, &rooktargets);
+    dangersquares(board, QUEEN, &queentargets);
+    dangersquares(board, KING, &kingtargets);
+    board->colorbb[BOTH] |= king;
+}
+
+/**
+ * board_make
+ *  Play the move, updating all relevant board information
+ */
+void board_make(Board *board, MoveInfo *minfo)
+{
+    U64 from, to;
+    int flags, promo;
+    Piece attacker, target;
+
+    from = 1ull << from(minfo->move);
+    to = 1ull << to(minfo->move);
+    flags = flags(minfo->move);
+    promo = promo(minfo->move);
+    attacker = minfo->attacker;
+    target = minfo->target;
+    minfo->undo = undo(board->rule50, board->eptarget, board->castling);
+
+    if (board->side == BLACK)
+        ++board->movenb;
+
+    if (attacker == PAWN || target != EMPTY)
+        board->rule50 = 0;
+    else
+        ++board->rule50;
+
+    board->piecebb[target] &= ~to;
+    board->piecebb[attacker] ^= from | to;
+    board->colorbb[board->side ^ 1] &= ~to;
+    board->colorbb[board->side] ^= from | to;
+    board->side ^= 1;
+
+    board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
+    board->piecebb[EMPTY] = ~board->colorbb[BOTH];
+}
+
+/**
+ * board_unmake
+ *  Undo the move, resetting all relevant board information
+ */
+void board_unmake(Board *board, MoveInfo *minfo)
+{
+    U64 from, to;
+    int flags, promo, rule50, eptarget;
+    Piece attacker, target;
+    Castling castling;
+
+    from = 1ull << from(minfo->move);
+    to = 1ull << to(minfo->move);
+    flags = flags(minfo->move);
+    promo = promo(minfo->move);
+    attacker = minfo->attacker;
+    target = minfo->target;
+    rule50 = rule50(minfo->undo);
+    eptarget = eptarget(minfo->undo);
+    castling = castling(minfo->undo);
+
+    board->side ^= 1;
+    board->colorbb[board->side] ^= from | to;
+    board->colorbb[board->side ^ 1] |= to;
+    board->piecebb[attacker] ^= from | to;
+    board->piecebb[target] |= to;
+
+    board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
+    board->piecebb[EMPTY] = ~board->colorbb[BOTH];
+
+    board->rule50 = rule50;
+
+    if (board->side == BLACK)
+        --board->movenb;
 }

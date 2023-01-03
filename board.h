@@ -39,7 +39,7 @@ struct board {
     int rule50;
     int movenb;
 
-    U64 king_danger;
+    U64 danger;
 };
 
 struct minfo {
