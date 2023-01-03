@@ -38,6 +38,8 @@ struct board {
     int eptarget;
     int rule50;
     int movenb;
+
+    U64 king_danger;
 };
 
 struct minfo {

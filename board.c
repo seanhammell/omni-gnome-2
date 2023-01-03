@@ -19,6 +19,9 @@
 /* set information for unmaking a move */
 #define undo(r, e, c)   (r | (e << 6) | (c << 12))
 
+/* get the index of the least significant bit */
+#define lsb(x)  __builtin_ctzll(x)
+
 typedef struct tables Tables;
 
 struct tables {
@@ -495,4 +498,51 @@ U64 queen_targets(Board *board, int i, Color side)
 U64 king_targets(Board *board, int i, Color side)
 {
     return tables.king_moves[i] & ~board->colorbb[side];
+}
+
+/**
+ * pullbit
+ *  pop the lsb from the board and return it's index
+ */
+int pullbit(U64 *bb)
+{
+    int i = lsb(*bb);
+    *bb &= *bb - 1;
+    return i;
+}
+
+/**
+ * danger_squares
+ *  Add the target squares for the specified enemy piece to the king_danger
+ *  board
+ */
+void danger_squares(Board *board, Piece piece,
+                    U64 (*targets)(Board *board, int i, Color side))
+{
+    U64 bb, i;
+
+    bb = board->piecebb[piece] & board->colorbb[board->side ^ 1];
+    while (bb) {
+        i = pullbit(&bb);
+        board->king_danger |= targets(board, i, board->side ^ 1);
+    } 
+}
+
+/**
+ * setdanger
+ *  Set the king_danger board for the current position
+ */
+void setdanger(Board *board)
+{
+    U64 ally_king;
+
+    board->king_danger = 0;
+    ally_king = board->piecebb[KING] & board->colorbb[board->side];
+    board->colorbb[BOTH] ^= ally_king;
+    danger_squares(board, KNIGHT, &knight_targets);
+    danger_squares(board, BISHOP, &bishop_targets);
+    danger_squares(board, ROOK, &rook_targets);
+    danger_squares(board, QUEEN, &queen_targets);
+    danger_squares(board, KING, &king_targets);
+    board->colorbb[BOTH] |= ally_king;
 }
