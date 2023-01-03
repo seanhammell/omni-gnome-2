@@ -391,7 +391,6 @@ U64 slide000(Board *board, int i)
     occ >>= 56;
     ray = tables.rays[i & 7][occ] * tables.file_masks[0];
     ray &= tables.rank_masks[i];
-    ray &= ~board->colorbb[board->side];
     return ray;
 }
 
@@ -408,7 +407,6 @@ U64 slide045(Board *board, int i)
     occ >>= 56;
     ray = tables.rays[i & 7][occ] * tables.file_masks[0];
     ray &= tables.diag_masks[i];
-    ray &= ~board->colorbb[board->side];
     return ray;
 }
 
@@ -427,7 +425,6 @@ U64 slide090(Board *board, int i)
     ray = tables.rays[(i ^ 56) >> 3][occ] * tables.diag_masks[0];
     ray &= tables.file_masks[7];
     ray >>= (i & 7) ^ 7;
-    ray &= ~board->colorbb[board->side];
     return ray;
 }
 
@@ -444,6 +441,58 @@ U64 slide135(Board *board, int i)
     occ >>= 56;
     ray = tables.rays[i & 7][occ] * tables.file_masks[0];
     ray &= tables.anti_masks[i];
-    ray &= ~board->colorbb[board->side];
     return ray;
+}
+
+/**
+ * knight_targets
+ *  return a bitboard of knight targets from the given square
+ */
+U64 knight_targets(Board *board, int i, Color side)
+{
+    return tables.knight_moves[i] & ~board->colorbb[side];
+}
+
+/**
+ * bishop_targets
+ *  return a bitboard of bishop targets from the given square
+ */
+U64 bishop_targets(Board *board, int i, Color side)
+{
+    U64 rays;
+
+    rays = slide045(board, i) | slide135(board, i);
+    rays &= ~board->colorbb[side];
+    return rays;
+}
+
+/**
+ * rook_targets
+ *  return a bitboard of rook targets from the given square
+ */
+U64 rook_targets(Board *board, int i, Color side)
+{
+    U64 rays;
+
+    rays = slide000(board, i) | slide090(board, i);
+    rays &= ~board->colorbb[side];
+    return rays;
+}
+
+/**
+ * queen_targets
+ *  return a bitboard of queen targets from the given square
+ */
+U64 queen_targets(Board *board, int i, Color side)
+{
+    return bishop_targets(board, i, side) | rook_targets(board, i, side);
+}
+
+/**
+ * king_targets
+ *  return a bitboard of king targets from the given square
+ */
+U64 king_targets(Board *board, int i, Color side)
+{
+    return tables.king_moves[i] & ~board->colorbb[side];
 }
