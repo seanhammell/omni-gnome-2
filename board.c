@@ -2,8 +2,9 @@
 
 #include "board.h"
 
-/* get the index of the least significant bit */
-#define lsb(x)  __builtin_ctzll(x)
+/* intrinsics for bitboard serialization */
+#define lsb(x)      __builtin_ctzll(x)
+#define popcnt(x)   __builtin_popcountll(x)
 
 /* get information for making a move */
 #define from(x)     (x & 63)
@@ -410,10 +411,10 @@ void pins(Board *board, U64 (*slide)(const Board *, int), const Piece s)
 }
 
 /**
- * seen
+ * seenray
  *  compute the squares seen by the enemy along the given ray
  */
-void seen(Board *board, U64 (*slide)(const Board *, int), const Piece s)
+void seenray(Board *board, U64 (*slide)(const Board *, int), const Piece s)
 {
     int i;
     U64 sliders;
@@ -431,10 +432,10 @@ void seen(Board *board, U64 (*slide)(const Board *, int), const Piece s)
 }
 
 /**
- * checks
+ * checkray
  *  compute the check mask along the given ray
  */
-void checks(Board *board, U64 (*slide)(const Board *, int), const Piece s)
+void checkray(Board *board, U64 (*slide)(const Board *, int), const Piece s)
 {
     int i;
     U64 sliders;
@@ -456,6 +457,28 @@ void checks(Board *board, U64 (*slide)(const Board *, int), const Piece s)
 }
 
 /**
+ * knightdanger
+ *  compute the squares seen and checks given by enemy knights
+ */
+void knightdanger(Board *board)
+{
+    int i;
+    U64 knights;
+
+    const U64 king = board->piecebb[KING] & board->colorbb[board->side];
+    knights = board->piecebb[KNIGHT] & board->colorbb[board->side ^ 1];
+
+    i = lsb(king);
+    const U64 checks = tables.knight_moves[i] & knights;
+    board->checkmask |= checks;
+    board->nchecks += popcnt(checks);
+    while (knights) {
+        i = pullbit(&knights);
+        board->seen |= tables.knight_moves[i];
+    }
+}
+
+/**
  * setdanger
  *  find pinned pieces, squares seen by the enemy, and checks
  */
@@ -463,19 +486,22 @@ void setdanger(Board *board)
 {
     int i;
 
+    const Piece sliders[4] = {ROOK, BISHOP, ROOK, BISHOP};
+    U64 (* const slide[4])(const Board *, int) = {
+        slide000, slide045, slide090, slide135
+    };
+
     board->pins[CROSS] = board->pins[DIAG] = 0;
     board->seen = 0;
     board->checkmask = 0;
     board->nchecks = 0;
 
-    const Piece sliders[4] = {ROOK, BISHOP, ROOK, BISHOP};
-    U64 (*slide[4])(const Board *, int) = {
-        slide000, slide045, slide090, slide135
-    };
+    knightdanger(board);
+
     for (i = 0; i < 4; ++i) {
         pins(board, slide[i], sliders[i]);
-        seen(board, slide[i], sliders[i]);
-        checks(board, slide[i], sliders[i]);
+        seenray(board, slide[i], sliders[i]);
+        checkray(board, slide[i], sliders[i]);
     }
 
     if (!board->checkmask)
