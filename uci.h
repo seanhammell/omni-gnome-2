@@ -2,6 +2,7 @@
 #define UCI_H
 
 #include "board.h"
+#include "search.h"
 
 void uci_loop(void);
 

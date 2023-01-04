@@ -4,10 +4,10 @@ CFLAGS = -g -Werror
 CC = clang $(CFLAGS)
 
 ODIR = obj
-_OBJ = main.o board.o uci.o
+_OBJ = main.o board.o search.o uci.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
-all: main.o board.o uci.o $(TARGET)
+all: main.o board.o search.o uci.o $(TARGET)
 
 $(TARGET): $(OBJ)
 	$(CC) -o $(TARGET) $(OBJ)
@@ -20,3 +20,6 @@ board.o:
 
 uci.o:
 	$(CC) -c -o obj/uci.o uci.c
+
+search.o:
+	$(CC) -c -o obj/search.o search.c
