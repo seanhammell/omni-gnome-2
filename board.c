@@ -206,6 +206,8 @@ void board_parsefen(Board *board, char *fen)
         board->colorbb[i] = 0;
     for (i = 0; i < 7; ++i)
         board->piecebb[i] = 0;
+    for (i = 0; i < 64; ++i)
+        board->piecelist[i] = EMPTY;
     board->castling = NO_CASTLE;
     board->eptarget = 64;
 
@@ -226,6 +228,7 @@ void board_parsefen(Board *board, char *fen)
             sq = 8 * rank + file;
             board->colorbb[color] |= 1ull << sq;
             board->piecebb[piece] |= 1ull << sq;
+            board->piecelist[sq] = piece;
             ++file;
         }
     }
@@ -271,12 +274,10 @@ void board_display(const Board *board)
         for (file = 0; file < 8; ++file) {
             sq = 8 * rank + file;
             printf("|");
-            if (board->colorbb[BOTH] & (1ull << sq)) {
+            if (board->piecelist[sq]) {
                 color = board->colorbb[WHITE] & (1ull << sq) ? WHITE : BLACK;
                 color *= 8;
-                piece = 1;
-                while (!(board->piecebb[piece] & (1ull << sq)))
-                    ++piece;
+                piece = board->piecelist[sq];
                 printf(" %c ", pchars[color + piece]);
             } else {
                 printf("   ");
@@ -499,7 +500,7 @@ void setdanger(Board *board)
     int i;
 
     const Piece sliders[4] = {ROOK, BISHOP, ROOK, BISHOP};
-    U64 (* const slide[4])(const Board *, int) = {
+    U64 (* const slide[4])(const Board *, const int) = {
         slide000, slide045, slide090, slide135
     };
 
@@ -525,45 +526,179 @@ void setdanger(Board *board)
  * knighttargets
  *  return a bitboard of knight targets from the given square
  */
-U64 knighttargets(Board *board, int i)
+U64 knighttargets(const Board *board, const int i)
 {
-    return tables.knight_moves[i];
+    U64 targets;
+
+    targets = tables.knight_moves[i];
+    targets &= ~board->colorbb[board->side];
+    targets &= board->checkmask;
+    return targets;
+}
+
+/**
+ * pinnedknight
+ *  return a bitboard of targets for a pinned knight
+ */
+U64 pinnedknight(const Board *board, const int i)
+{
+    return 0;
 }
 
 /**
  * bishoptargets
  *  return a bitboard of bishop targets from the given square
  */
-U64 bishoptargets(Board *board, int i)
+U64 bishoptargets(const Board *board, const int i)
 {
-    return slide045(board, i) | slide135(board, i);
+    U64 ray;
+
+    ray = slide045(board, i) | slide135(board, i);
+    ray &= ~board->colorbb[board->side];
+    ray &= board->checkmask;
+    return ray;
+}
+
+/**
+ * pinnedbishop
+ *  return a bitboard of targets for a pinned bishop
+ */
+U64 pinnedbishop(const Board *board, const int i)
+{
+    return bishoptargets(board, i) & board->pins[DIAG];
 }
 
 /**
  * rooktargets
  *  return a bitboard of rook targets from the given square
  */
-U64 rooktargets(Board *board, int i)
+U64 rooktargets(const Board *board, const int i)
 {
-    return slide000(board, i) | slide090(board, i);
+    U64 ray;
+
+    ray = slide000(board, i) | slide090(board, i);
+    ray &= ~board->colorbb[board->side];
+    ray &= board->checkmask;
+    return ray;
+}
+
+/**
+ * pinnedrook
+ *  return a bitboard of targets for a pinned rook
+ */
+U64 pinnedrook(const Board *board, const int i)
+{
+    return rooktargets(board, i) & board->pins[CROSS];
 }
 
 /**
  * queentargets
  *  return a bitboard of queen targets from the given square
  */
-U64 queentargets(Board *board, int i)
+U64 queentargets(const Board *board, const int i)
 {
     return bishoptargets(board, i) | rooktargets(board, i);
+}
+
+/**
+ * pinnedqueen
+ *  return a bitboard of targets for a pinned queen
+ */
+U64 pinnedqueen(const Board *board, const int i)
+{
+    return pinnedbishop(board, i) | pinnedrook(board, i);
 }
 
 /**
  * kingtargets
  *  return a bitboard of king targets from the given square
  */
-U64 kingtargets(Board *board, int i)
+U64 kingtargets(const Board *board, const int i)
 {
-    return tables.king_moves[i];
+    U64 targets;
+    
+    targets = tables.king_moves[i];
+    targets &= ~board->colorbb[board->side];
+    targets &= ~board->seen;
+    return targets;
+}
+
+/**
+ * serialize
+ *  add all moves for the specified pieces to the move list
+ */
+void serialize(const Board *board, MoveInfo *movelist, int *count,
+               const Piece piece,
+               U64 bitboard, U64 (* const moves)(const Board *, const int))
+{
+    int i, j;
+    U64 targets;
+
+    while (bitboard) {
+        i = pullbit(&bitboard);
+        targets = moves(board, i);
+        while (targets) {
+            j = pullbit(&targets);
+            MoveInfo minfo;
+            minfo.attacker = piece;
+            minfo.target = board->piecelist[j];
+            minfo.move = move(i, j, 0, 0);
+            movelist[*count] = minfo;
+            ++(*count);
+        }
+    }
+}
+
+/**
+ * movegen
+ *  generate legal moves for the specified piece type
+ */
+void movegen(const Board *board, MoveInfo *movelist, int *count,
+             const Piece piece, U64 (* const moves)(const Board *, const int),
+             U64 (* const pinnedmoves)(const Board *, const int))
+{
+    U64 piecebb, free, pinned;
+
+    piecebb = board->piecebb[piece] & board->colorbb[board->side];
+    free = piecebb & ~(board->pins[CROSS] | board->pins[DIAG]);
+    pinned = piecebb & (board->pins[CROSS] | board->pins[DIAG]);
+    
+    serialize(board, movelist, count, piece, free, moves);
+    serialize(board, movelist, count, piece, pinned, pinnedmoves);
+}
+
+/**
+ * kinggen
+ *  generate legal king moves
+ */
+void kinggen(const Board *board, MoveInfo *movelist, int *count)
+{
+    U64 king;
+
+    king = board->piecebb[KING] & board->colorbb[board->side];
+
+    serialize(board, movelist, count, KING, king, kingtargets);
+}
+
+/**
+ * board_generate
+ *  generate all legal moves in the current position and return the count
+ */
+int board_generate(Board *board, MoveInfo *movelist)
+{
+    int count;
+
+    count = 0;
+
+    setdanger(board);
+
+    movegen(board, movelist, &count, KNIGHT, knighttargets, pinnedknight);
+    movegen(board, movelist, &count, BISHOP, bishoptargets, pinnedbishop);
+    movegen(board, movelist, &count, ROOK, rooktargets, pinnedrook);
+    movegen(board, movelist, &count, QUEEN, queentargets, pinnedqueen);
+    kinggen(board, movelist, &count);
+
+    return count;
 }
 
 /**
@@ -572,12 +707,14 @@ U64 kingtargets(Board *board, int i)
  */
 void board_make(Board *board, MoveInfo *minfo)
 {
-    U64 from, to;
-    int flags, promo;
+    int from, to, flags, promo;
+    U64 frombb, tobb;
     Piece attacker, target;
 
-    from = 1ull << from(minfo->move);
-    to = 1ull << to(minfo->move);
+    from = from(minfo->move);
+    frombb = 1ull << from;
+    to = to(minfo->move);
+    tobb = 1ull << to;
     flags = flags(minfo->move);
     promo = promo(minfo->move);
     attacker = minfo->attacker;
@@ -592,10 +729,12 @@ void board_make(Board *board, MoveInfo *minfo)
     else
         ++board->rule50;
 
-    board->piecebb[target] &= ~to;
-    board->piecebb[attacker] ^= from | to;
-    board->colorbb[board->side ^ 1] &= ~to;
-    board->colorbb[board->side] ^= from | to;
+    board->piecebb[target] &= ~tobb;
+    board->piecebb[attacker] ^= frombb | tobb;
+    board->colorbb[board->side ^ 1] &= ~tobb;
+    board->colorbb[board->side] ^= frombb | tobb;
+    board->piecelist[from] = EMPTY;
+    board->piecelist[to] = attacker;
     board->side ^= 1;
 
     board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
@@ -608,13 +747,15 @@ void board_make(Board *board, MoveInfo *minfo)
  */
 void board_unmake(Board *board, MoveInfo *minfo)
 {
-    U64 from, to;
-    int flags, promo, rule50, eptarget;
+    int from, to, flags, promo, rule50, eptarget;
+    U64 frombb, tobb;
     Piece attacker, target;
     Castling castling;
 
-    from = 1ull << from(minfo->move);
-    to = 1ull << to(minfo->move);
+    from = from(minfo->move);
+    frombb = 1ull << from;
+    to = to(minfo->move);
+    tobb = 1ull << to;
     flags = flags(minfo->move);
     promo = promo(minfo->move);
     attacker = minfo->attacker;
@@ -624,10 +765,12 @@ void board_unmake(Board *board, MoveInfo *minfo)
     castling = castling(minfo->undo);
 
     board->side ^= 1;
-    board->colorbb[board->side] ^= from | to;
-    board->colorbb[board->side ^ 1] |= to;
-    board->piecebb[attacker] ^= from | to;
-    board->piecebb[target] |= to;
+    board->colorbb[board->side] ^= frombb | tobb;
+    board->colorbb[board->side ^ 1] |= tobb;
+    board->piecebb[attacker] ^= frombb | tobb;
+    board->piecebb[target] |= tobb;
+    board->piecelist[from] = attacker;
+    board->piecelist[to] = target;
 
     board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
     board->piecebb[EMPTY] = ~board->colorbb[BOTH];

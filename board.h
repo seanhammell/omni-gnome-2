@@ -35,6 +35,7 @@ enum castling {
 enum slider { CROSS, DIAG };
 
 struct board {
+    Piece piecelist[64];
     U64 colorbb[3];
     U64 piecebb[7];
     int side;
@@ -60,6 +61,8 @@ void board_inittables();
 
 void board_parsefen(Board *board, char *fen);
 void board_display(const Board *board);
+
+int board_generate(Board *board, MoveInfo *movelist);
 
 void board_make(Board *board, MoveInfo *minfo);
 void board_unmake(Board *board, MoveInfo *minfo);
