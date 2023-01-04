@@ -41,7 +41,7 @@ static Tables tables;
  * rankmask
  *  compute the rank mask for the given square
  */
-U64 rankmask(int i)
+U64 rankmask(const int i)
 {
     const U64 RANK_1 = 0xff;
     return RANK_1 << (i & 56);
@@ -51,7 +51,7 @@ U64 rankmask(int i)
  * filemask
  *  compute the file mask for the given square
  */
-U64 filemask(int i)
+U64 filemask(const int i)
 {
     const U64 FILE_A = 0x101010101010101;
     return FILE_A << (i & 7);
@@ -61,7 +61,7 @@ U64 filemask(int i)
  * diagmask
  *  compute the diagonal mask for the given square
  */
-U64 diagmask(int i)
+U64 diagmask(const int i)
 {
     int diag, north, south;
     const U64 DIAG = 0x8040201008040201;
@@ -75,7 +75,7 @@ U64 diagmask(int i)
  * antimask
  *  compute the anti-diagonal mask for the given square
  */
-U64 antimask(int i)
+U64 antimask(const int i)
 {
     int diag, north, south;
     const U64 DIAG = 0x0102040810204080;
@@ -259,7 +259,7 @@ void board_parsefen(Board *board, char *fen)
  * board_display
  *  Print the current board position.
  */
-void board_display(Board *board)
+void board_display(const Board *board)
 {
     const char pchars[] = " PNBRQK??pnbrqk";
     int rank, file, sq;
@@ -324,7 +324,7 @@ int pullbit(U64 *bb)
  * slide000
  *  compute horizontal sliding attacks
  */
-U64 slide000(Board *board, int i)
+U64 slide000(const Board *board, const int i)
 {
     U64 occ, ray;
 
@@ -337,87 +337,10 @@ U64 slide000(Board *board, int i)
 }
 
 /**
- * pins000
- *  compute the horizontal pin mask
- */
-void pins000(Board *board)
-{
-    int i;
-    U64 king, sliders, pin;
-    U64 kingray, enemyray;
-
-    board->pins000 = 0;
-
-    king = board->piecebb[KING] & board->colorbb[board->side];
-    sliders = board->piecebb[ROOK] | board->piecebb[QUEEN];
-    sliders &= board->colorbb[board->side ^ 1];
-
-    i = lsb(king);
-    kingray = slide000(board, i);
-    while(sliders) {
-        i = pullbit(&sliders);
-        enemyray = slide000(board, i);
-        pin = kingray & enemyray & board->colorbb[board->side];
-        if (pin)
-            board->pins000 |= (slide000(board, lsb(pin)) | pin) ^ king;
-    }
-}
-
-/**
- * seen000
- *  compute the horizontal squares seen by the enemy
- */
-void seen000(Board *board)
-{
-    int i;
-    U64 king, sliders;
-
-    board->seen = 0;
-
-    king = board->piecebb[KING] & board->colorbb[board->side];
-    sliders = board->piecebb[ROOK] | board->piecebb[QUEEN];
-    sliders &= board->colorbb[board->side ^ 1];
-
-    board->colorbb[BOTH] ^= king;
-    while(sliders) {
-        i = pullbit(&sliders);
-        board->seen |= slide000(board, i);
-    }
-    board->colorbb[BOTH] ^= king;
-}
-
-/**
- * checks000
- *  compute the horizontal check mask
- */
-void checks000(Board *board)
-{
-    int i;
-    U64 king, sliders;
-    U64 kingray, enemyray;
-
-    board->checkmask = 0;
-
-    king = board->piecebb[KING] & board->colorbb[board->side];
-    sliders = board->piecebb[ROOK] | board->piecebb[QUEEN];
-    sliders &= board->colorbb[board->side ^ 1];
-
-    i = lsb(king);
-    kingray = slide000(board, i);
-    sliders &= kingray;
-    while(sliders) {
-        i = pullbit(&sliders);
-        enemyray = slide000(board, i);
-        board->checkmask |= (kingray & enemyray) | (1ull << i);
-        ++board->nchecks;
-    }
-}
-
-/**
  * slide045
  *  compute diagonal sliding attacks
  */
-U64 slide045(Board *board, int i)
+U64 slide045(const Board *board, int i)
 {
     U64 occ, ray;
 
@@ -433,7 +356,7 @@ U64 slide045(Board *board, int i)
  * slide090
  *  compute file sliding attacks
  */
-U64 slide090(Board *board, int i)
+U64 slide090(const Board *board, int i)
 {
     U64 occ, ray;
 
@@ -451,7 +374,7 @@ U64 slide090(Board *board, int i)
  * slide135
  *  compute anti-diagonal sliding attacks
  */
-U64 slide135(Board *board, int i)
+U64 slide135(const Board *board, int i)
 {
     U64 occ, ray;
 
@@ -463,16 +386,102 @@ U64 slide135(Board *board, int i)
     return ray;
 }
 
+/**
+ * pins
+ *  compute the pinned pieces along the given ray
+ */
+void pins(Board *board, U64 (*slide)(const Board *, int), const Piece s)
+{
+    int i;
+    U64 king, sliders, pin;
+    U64 kingray, enemyray;
+
+    king = board->piecebb[KING] & board->colorbb[board->side];
+    sliders = board->piecebb[s] | board->piecebb[QUEEN];
+    sliders &= board->colorbb[board->side ^ 1];
+
+    i = lsb(king);
+    kingray = slide(board, i);
+    while(sliders) {
+        i = pullbit(&sliders);
+        enemyray = slide(board, i);
+        pin = kingray & enemyray & board->colorbb[board->side];
+        if (pin)
+            board->pins[s % 2] |= (slide(board, lsb(pin)) | pin) ^ king;
+    }
+}
+
+/**
+ * seen
+ *  compute the squares seen by the enemy along the given ray
+ */
+void seen(Board *board, U64 (*slide)(const Board *, int), const Piece s)
+{
+    int i;
+    U64 king, sliders;
+
+    king = board->piecebb[KING] & board->colorbb[board->side];
+    sliders = board->piecebb[s] | board->piecebb[QUEEN];
+    sliders &= board->colorbb[board->side ^ 1];
+
+    board->colorbb[BOTH] ^= king;
+    while(sliders) {
+        i = pullbit(&sliders);
+        board->seen |= slide(board, i);
+    }
+    board->colorbb[BOTH] ^= king;
+}
+
+/**
+ * checks
+ *  compute the check mask along the given ray
+ */
+void checks(Board *board, U64 (*slide)(const Board *, int), const Piece s)
+{
+    int i;
+    U64 king, sliders;
+    U64 kingray, enemyray;
+
+    king = board->piecebb[KING] & board->colorbb[board->side];
+    sliders = board->piecebb[s] | board->piecebb[QUEEN];
+    sliders &= board->colorbb[board->side ^ 1];
+
+    i = lsb(king);
+    kingray = slide(board, i);
+    sliders &= kingray;
+    while(sliders) {
+        i = pullbit(&sliders);
+        enemyray = slide(board, i);
+        board->checkmask |= (kingray & enemyray) | (1ull << i);
+        ++board->nchecks;
+    }
+}
+
+/**
+ * setdanger
+ *  find pinned pieces, squares seen by the enemy, and checks
+ */
 void setdanger(Board *board)
 {
-    board->pins000 = 0;
+    int i;
+
+    board->pins[CROSS] = board->pins[DIAG] = 0;
     board->seen = 0;
     board->checkmask = 0;
     board->nchecks = 0;
 
-    pins000(board);
-    seen000(board);
-    checks000(board);
+    const Piece sliders[4] = {ROOK, BISHOP, ROOK, BISHOP};
+    U64 (* const slide[4])(const Board *, int) = {
+        slide000, slide045, slide090, slide135
+    };
+    for (i = 0; i < 4; ++i) {
+        pins(board, slide[i], sliders[i]);
+        seen(board, slide[i], sliders[i]);
+        checks(board, slide[i], sliders[i]);
+    }
+
+    if (!board->checkmask)
+        board->checkmask = ~board->checkmask;
 }
 
 /**

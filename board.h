@@ -10,6 +10,8 @@ typedef enum colors Color;
 typedef enum pieces Piece;
 typedef enum castling Castling;
 
+typedef enum pins Pins;
+
 typedef struct board Board;
 typedef struct minfo MoveInfo;
 
@@ -30,6 +32,8 @@ enum castling {
     ALL_CASTLE = WHITE_CASTLE | BLACK_CASTLE
 };
 
+enum pins { CROSS, DIAG };
+
 struct board {
     U64 colorbb[3];
     U64 piecebb[7];
@@ -39,7 +43,7 @@ struct board {
     int rule50;
     int movenb;
 
-    U64 pins000;
+    U64 pins[2];
     U64 seen;
     U64 checkmask;
     int nchecks;
@@ -55,9 +59,7 @@ struct minfo {
 void board_inittables();
 
 void board_parsefen(Board *board, char *fen);
-void board_display(Board *board);
-
-void setdanger(Board *board);
+void board_display(const Board *board);
 
 void board_make(Board *board, MoveInfo *minfo);
 void board_unmake(Board *board, MoveInfo *minfo);
