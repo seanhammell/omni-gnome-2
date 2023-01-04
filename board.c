@@ -479,6 +479,18 @@ void knightdanger(Board *board)
 }
 
 /**
+ * kingdanger
+ *  compute the squares seen by the enemy king
+ */
+void kingdanger(Board *board)
+{
+    int i;
+
+    const U64 king = board->piecebb[KING] & board->colorbb[board->side ^ 1];
+    board->seen |= tables.king_moves[lsb(king)];
+}
+
+/**
  * setdanger
  *  find pinned pieces, squares seen by the enemy, and checks
  */
@@ -496,13 +508,14 @@ void setdanger(Board *board)
     board->checkmask = 0;
     board->nchecks = 0;
 
-    knightdanger(board);
-
     for (i = 0; i < 4; ++i) {
         pins(board, slide[i], sliders[i]);
         seenray(board, slide[i], sliders[i]);
         checkray(board, slide[i], sliders[i]);
     }
+
+    knightdanger(board);
+    kingdanger(board);
 
     if (!board->checkmask)
         board->checkmask = ~board->checkmask;
