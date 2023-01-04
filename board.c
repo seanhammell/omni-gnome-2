@@ -2,6 +2,9 @@
 
 #include "board.h"
 
+/* get the index of the least significant bit */
+#define lsb(x)  __builtin_ctzll(x)
+
 /* get information for making a move */
 #define from(x)     (x & 63)
 #define to(x)       ((x >> 6) & 63)
@@ -18,9 +21,6 @@
 
 /* set information for unmaking a move */
 #define undo(r, e, c)   (r | (e << 6) | (c << 12))
-
-/* get the index of the least significant bit */
-#define lsb(x)  __builtin_ctzll(x)
 
 typedef struct tables Tables;
 
@@ -63,11 +63,10 @@ U64 filemask(const int i)
  */
 U64 diagmask(const int i)
 {
-    int diag, north, south;
     const U64 DIAG = 0x8040201008040201;
-    diag = 8 * (i & 7) - (i & 56);
-    north = -diag & (diag >> 31);
-    south = diag & (-diag >> 31);
+    const int diag = 8 * (i & 7) - (i & 56);
+    const int north = -diag & (diag >> 31);
+    const int south = diag & (-diag >> 31);
     return (DIAG >> south) << north;
 }
 
@@ -77,11 +76,10 @@ U64 diagmask(const int i)
  */
 U64 antimask(const int i)
 {
-    int diag, north, south;
     const U64 DIAG = 0x0102040810204080;
-    diag = 56 - 8 * (i & 7) - (i & 56);
-    north = -diag & (diag >> 31);
-    south = diag & (-diag >> 31);
+    const int diag = 56 - 8 * (i & 7) - (i & 56);
+    const int north = -diag & (diag >> 31);
+    const int south = diag & (-diag >> 31);
     return (DIAG >> south) << north;
 }
 
@@ -315,7 +313,7 @@ void board_display(const Board *board)
  */
 int pullbit(U64 *bb)
 {
-    int i = lsb(*bb);
+    const int i = lsb(*bb);
     *bb &= *bb - 1;
     return i;
 }
@@ -340,7 +338,7 @@ U64 slide000(const Board *board, const int i)
  * slide045
  *  compute diagonal sliding attacks
  */
-U64 slide045(const Board *board, int i)
+U64 slide045(const Board *board, const int i)
 {
     U64 occ, ray;
 
@@ -356,7 +354,7 @@ U64 slide045(const Board *board, int i)
  * slide090
  *  compute file sliding attacks
  */
-U64 slide090(const Board *board, int i)
+U64 slide090(const Board *board, const int i)
 {
     U64 occ, ray;
 
@@ -374,7 +372,7 @@ U64 slide090(const Board *board, int i)
  * slide135
  *  compute anti-diagonal sliding attacks
  */
-U64 slide135(const Board *board, int i)
+U64 slide135(const Board *board, const int i)
 {
     U64 occ, ray;
 
@@ -393,15 +391,15 @@ U64 slide135(const Board *board, int i)
 void pins(Board *board, U64 (*slide)(const Board *, int), const Piece s)
 {
     int i;
-    U64 king, sliders, pin;
-    U64 kingray, enemyray;
+    U64 sliders, pin;
+    U64 enemyray;
 
-    king = board->piecebb[KING] & board->colorbb[board->side];
+    const U64 king = board->piecebb[KING] & board->colorbb[board->side];
     sliders = board->piecebb[s] | board->piecebb[QUEEN];
     sliders &= board->colorbb[board->side ^ 1];
 
     i = lsb(king);
-    kingray = slide(board, i);
+    const U64 kingray = slide(board, i);
     while(sliders) {
         i = pullbit(&sliders);
         enemyray = slide(board, i);
@@ -418,9 +416,9 @@ void pins(Board *board, U64 (*slide)(const Board *, int), const Piece s)
 void seen(Board *board, U64 (*slide)(const Board *, int), const Piece s)
 {
     int i;
-    U64 king, sliders;
+    U64 sliders;
 
-    king = board->piecebb[KING] & board->colorbb[board->side];
+    const U64 king = board->piecebb[KING] & board->colorbb[board->side];
     sliders = board->piecebb[s] | board->piecebb[QUEEN];
     sliders &= board->colorbb[board->side ^ 1];
 
@@ -439,15 +437,15 @@ void seen(Board *board, U64 (*slide)(const Board *, int), const Piece s)
 void checks(Board *board, U64 (*slide)(const Board *, int), const Piece s)
 {
     int i;
-    U64 king, sliders;
-    U64 kingray, enemyray;
+    U64 sliders;
+    U64 enemyray;
 
-    king = board->piecebb[KING] & board->colorbb[board->side];
+    const U64 king = board->piecebb[KING] & board->colorbb[board->side];
     sliders = board->piecebb[s] | board->piecebb[QUEEN];
     sliders &= board->colorbb[board->side ^ 1];
 
     i = lsb(king);
-    kingray = slide(board, i);
+    const U64 kingray = slide(board, i);
     sliders &= kingray;
     while(sliders) {
         i = pullbit(&sliders);
@@ -471,7 +469,7 @@ void setdanger(Board *board)
     board->nchecks = 0;
 
     const Piece sliders[4] = {ROOK, BISHOP, ROOK, BISHOP};
-    U64 (* const slide[4])(const Board *, int) = {
+    U64 (*slide[4])(const Board *, int) = {
         slide000, slide045, slide090, slide135
     };
     for (i = 0; i < 4; ++i) {

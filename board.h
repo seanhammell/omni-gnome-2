@@ -10,7 +10,7 @@ typedef enum colors Color;
 typedef enum pieces Piece;
 typedef enum castling Castling;
 
-typedef enum pins Pins;
+typedef enum slider Slider;
 
 typedef struct board Board;
 typedef struct minfo MoveInfo;
@@ -32,7 +32,7 @@ enum castling {
     ALL_CASTLE = WHITE_CASTLE | BLACK_CASTLE
 };
 
-enum pins { CROSS, DIAG };
+enum slider { CROSS, DIAG };
 
 struct board {
     U64 colorbb[3];
