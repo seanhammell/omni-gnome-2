@@ -92,7 +92,7 @@ void initmasks()
 {
     int i;
 
-    for (i = 0; i < 63; ++i) {
+    for (i = 0; i < 64; ++i) {
         tables.rank_masks[i] = rankmask(i);
         tables.file_masks[i] = filemask(i);
         tables.diag_masks[i] = diagmask(i);
@@ -307,6 +307,16 @@ void board_display(const Board *board)
         printf("%d", board->eptarget);
     printf("\nhalfmove clock: %d", board->rule50);
     printf("\nfullmove number: %d\n\n", board->movenb);
+}
+
+void board_printmove(MoveInfo *minfo)
+{
+    int from, to;
+
+    from = from(minfo->move);
+    to = to(minfo->move);
+    printf("%c%c", 'a' + (from % 8), '1' + (from / 8));
+    printf("%c%c", 'a' + (to % 8), '1' + (to / 8));
 }
 
 /**
@@ -766,7 +776,8 @@ void board_unmake(Board *board, MoveInfo *minfo)
 
     board->side ^= 1;
     board->colorbb[board->side] ^= frombb | tobb;
-    board->colorbb[board->side ^ 1] |= tobb;
+    if (target != EMPTY)
+        board->colorbb[board->side ^ 1] |= tobb;
     board->piecebb[attacker] ^= frombb | tobb;
     board->piecebb[target] |= tobb;
     board->piecelist[from] = attacker;

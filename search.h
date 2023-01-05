@@ -14,4 +14,6 @@ struct sinfo {
 
 void search_clearinfo(SearchInfo *sinfo);
 
+U64 search_perft(Board *board, SearchInfo *sinfo, int depth);
+
 #endif  /* SEARCH_H */

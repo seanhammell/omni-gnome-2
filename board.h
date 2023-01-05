@@ -61,6 +61,7 @@ void board_inittables();
 
 void board_parsefen(Board *board, char *fen);
 void board_display(const Board *board);
+void board_printmove(MoveInfo *minfo);
 
 int board_generate(Board *board, MoveInfo *movelist);
 
