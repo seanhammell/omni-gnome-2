@@ -26,6 +26,7 @@
 typedef struct tables Tables;
 
 struct tables {
+    U64 bit[64];
     U64 rank_masks[64];
     U64 file_masks[64];
     U64 diag_masks[64];
@@ -93,6 +94,7 @@ void initmasks()
     int i;
 
     for (i = 0; i < 64; ++i) {
+        tables.bit[i] = 1ull << i;
         tables.rank_masks[i] = rankmask(i);
         tables.file_masks[i] = filemask(i);
         tables.diag_masks[i] = diagmask(i);
@@ -194,7 +196,8 @@ void board_parsefen(Board *board, char *fen)
     char c, pos[128], side, castle[5], ep[3];
     const char pchars[] = " PNBRQK??pnbrqk";
     int rule50, movenb;
-    int i, rank, file, sq;
+    int i, rank, file;
+    U64 sq;
     Color color;
     Piece piece;
 
@@ -206,8 +209,6 @@ void board_parsefen(Board *board, char *fen)
         board->colorbb[i] = 0;
     for (i = 0; i < 7; ++i)
         board->piecebb[i] = 0;
-    for (i = 0; i < 64; ++i)
-        board->piecelist[i] = EMPTY;
     board->castling = NO_CASTLE;
     board->eptarget = 64;
 
@@ -225,10 +226,9 @@ void board_parsefen(Board *board, char *fen)
             while (c != pchars[piece])
                 ++piece;
             piece &= 7;
-            sq = 8 * rank + file;
-            board->colorbb[color] |= 1ull << sq;
-            board->piecebb[piece] |= 1ull << sq;
-            board->piecelist[sq] = piece;
+            sq = tables.bit[8 * rank + file];
+            board->colorbb[color] |= sq;
+            board->piecebb[piece] |= sq;
             ++file;
         }
     }
@@ -264,7 +264,8 @@ void board_parsefen(Board *board, char *fen)
 void board_display(const Board *board)
 {
     const char pchars[] = " PNBRQK??pnbrqk";
-    int rank, file, sq;
+    int rank, file;
+    U64 sq;
     Color color;
     Piece piece;
 
@@ -272,12 +273,15 @@ void board_display(const Board *board)
     for (rank = 7; rank >= 0; --rank) {
         printf(" %d ", rank + 1);
         for (file = 0; file < 8; ++file) {
-            sq = 8 * rank + file;
+            sq = tables.bit[8 * rank + file];
             printf("|");
-            if (board->piecelist[sq]) {
-                color = board->colorbb[WHITE] & (1ull << sq) ? WHITE : BLACK;
+            if (board->colorbb[BOTH] & sq) {
+                color = board->colorbb[WHITE] & sq ? WHITE : BLACK;
                 color *= 8;
-                piece = board->piecelist[sq];
+                piece = 1; 
+                while (!(board->piecebb[piece] & sq))
+                    ++piece;
+                piece &= 7;
                 printf(" %c ", pchars[color + piece]);
             } else {
                 printf("   ");
@@ -462,7 +466,7 @@ void checkray(Board *board, U64 (*slide)(const Board *, int), const Piece s)
     while(sliders) {
         i = pullbit(&sliders);
         enemyray = slide(board, i);
-        board->checkmask |= (kingray & enemyray) | (1ull << i);
+        board->checkmask |= (kingray & enemyray) | tables.bit[i];
         ++board->nchecks;
     }
 }
@@ -616,7 +620,7 @@ U64 queentargets(const Board *board, const int i)
  */
 U64 pinnedqueen(const Board *board, const int i)
 {
-    if ((1ull << i) & board->pins[CROSS])
+    if (board->pins[CROSS] & tables.bit[i])
         return pinnedrook(board, i);
     else
         return pinnedbishop(board, i);
@@ -644,7 +648,7 @@ void serialize(const Board *board, MoveInfo *movelist, int *count,
                const Piece piece,
                U64 bitboard, U64 (* const moves)(const Board *, const int))
 {
-    int i, j;
+    int i, j, cap;
     U64 targets;
 
     while (bitboard) {
@@ -654,7 +658,10 @@ void serialize(const Board *board, MoveInfo *movelist, int *count,
             j = pullbit(&targets);
             MoveInfo minfo;
             minfo.attacker = piece;
-            minfo.target = board->piecelist[j];
+            for (cap = EMPTY; cap < KING; ++cap)
+                if (board->piecebb[cap] & tables.bit[j])
+                    break;
+            minfo.target = cap;
             minfo.move = move(i, j, 0, 0);
             movelist[*count] = minfo;
             ++(*count);
@@ -717,19 +724,33 @@ int board_generate(Board *board, MoveInfo *movelist)
 }
 
 /**
+ * domove
+ *  update the bitboards based on the specified move
+ */
+void domove(Board *board, int from, int to, Piece attacker, Piece target)
+{
+    board->piecebb[attacker] ^= tables.bit[from] | tables.bit[to];
+    board->colorbb[board->side] ^= tables.bit[from] | tables.bit[to];
+    if (target != EMPTY) {
+        board->piecebb[target] ^= tables.bit[to];
+        board->colorbb[board->side ^ 1] ^= tables.bit[to];
+    }
+
+    board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
+    board->piecebb[EMPTY] = ~board->colorbb[BOTH];
+}
+
+/**
  * board_make
  *  Play the move, updating all relevant board information
  */
 void board_make(Board *board, MoveInfo *minfo)
 {
     int from, to, flags, promo;
-    U64 from_bb, to_bb;
     Piece attacker, target;
 
     from = from(minfo->move);
-    from_bb = 1ull << from;
     to = to(minfo->move);
-    to_bb = 1ull << to;
     flags = flags(minfo->move);
     promo = promo(minfo->move);
     attacker = minfo->attacker;
@@ -740,20 +761,9 @@ void board_make(Board *board, MoveInfo *minfo)
         ++board->movenb;
     ++board->rule50;
 
-    board->piecebb[attacker] ^= from_bb | to_bb;
-    board->colorbb[board->side] ^= from_bb | to_bb;
-    board->piecelist[from] = EMPTY;
-    board->piecelist[to] = attacker;
-    if (target != EMPTY) {
-        board->piecebb[target] ^= to_bb;
-        board->colorbb[board->side ^ 1] ^= to_bb;
-        board->rule50 = 0;
-    }
+    domove(board, from, to, attacker, target);
 
     board->side ^= 1;
-
-    board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
-    board->piecebb[EMPTY] = ~board->colorbb[BOTH];
 }
 
 /**
@@ -763,14 +773,11 @@ void board_make(Board *board, MoveInfo *minfo)
 void board_unmake(Board *board, MoveInfo *minfo)
 {
     int from, to, flags, promo, rule50, eptarget;
-    U64 from_bb, to_bb;
     Piece attacker, target;
     Castling castling;
 
     from = from(minfo->move);
-    from_bb = 1ull << from;
     to = to(minfo->move);
-    to_bb = 1ull << to;
     flags = flags(minfo->move);
     promo = promo(minfo->move);
     attacker = minfo->attacker;
@@ -785,15 +792,5 @@ void board_unmake(Board *board, MoveInfo *minfo)
         --board->movenb;
     board->rule50 = rule50;
 
-    board->piecebb[attacker] ^= from_bb | to_bb;
-    board->colorbb[board->side] ^= from_bb | to_bb;
-    board->piecelist[from] = attacker;
-    board->piecelist[to] = target;
-    if (target != EMPTY) {
-        board->piecebb[target] ^= to_bb;
-        board->colorbb[board->side ^ 1] ^= to_bb;
-    }
-
-    board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
-    board->piecebb[EMPTY] = ~board->colorbb[BOTH];
+    domove(board, from, to, attacker, target);
 }

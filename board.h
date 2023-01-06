@@ -35,7 +35,6 @@ enum castling {
 enum slider { CROSS, DIAG };
 
 struct board {
-    Piece piecelist[64];
     U64 colorbb[3];
     U64 piecebb[7];
     int side;
