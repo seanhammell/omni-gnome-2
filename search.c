@@ -20,12 +20,15 @@ void search_clearinfo(SearchInfo *sinfo)
  */
 U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
 {
-    if (depth == 0)
-        return 1ull;
-
     int i;
     U64 branch_nodes, nodes;
     MoveInfo movelist[256];
+
+    if (depth == 1 && sinfo->depth != 1)
+        return board_generate(board, movelist);
+    
+    if (depth == 0)
+        return 1ull;
 
     const int count = board_generate(board, movelist);
     sinfo->nodes += count;

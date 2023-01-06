@@ -616,7 +616,10 @@ U64 queentargets(const Board *board, const int i)
  */
 U64 pinnedqueen(const Board *board, const int i)
 {
-    return pinnedbishop(board, i) | pinnedrook(board, i);
+    if ((1ull << i) & board->pins[CROSS])
+        return pinnedrook(board, i);
+    else
+        return pinnedbishop(board, i);
 }
 
 /**
@@ -702,10 +705,12 @@ int board_generate(Board *board, MoveInfo *movelist)
 
     setdanger(board);
 
-    movegen(board, movelist, &count, KNIGHT, knighttargets, pinnedknight);
-    movegen(board, movelist, &count, BISHOP, bishoptargets, pinnedbishop);
-    movegen(board, movelist, &count, ROOK, rooktargets, pinnedrook);
-    movegen(board, movelist, &count, QUEEN, queentargets, pinnedqueen);
+    if (board->nchecks < 2) {
+        movegen(board, movelist, &count, KNIGHT, knighttargets, pinnedknight);
+        movegen(board, movelist, &count, BISHOP, bishoptargets, pinnedbishop);
+        movegen(board, movelist, &count, ROOK, rooktargets, pinnedrook);
+        movegen(board, movelist, &count, QUEEN, queentargets, pinnedqueen);
+    }
     kinggen(board, movelist, &count);
 
     return count;
@@ -718,13 +723,13 @@ int board_generate(Board *board, MoveInfo *movelist)
 void board_make(Board *board, MoveInfo *minfo)
 {
     int from, to, flags, promo;
-    U64 frombb, tobb;
+    U64 from_bb, to_bb;
     Piece attacker, target;
 
     from = from(minfo->move);
-    frombb = 1ull << from;
+    from_bb = 1ull << from;
     to = to(minfo->move);
-    tobb = 1ull << to;
+    to_bb = 1ull << to;
     flags = flags(minfo->move);
     promo = promo(minfo->move);
     attacker = minfo->attacker;
@@ -733,18 +738,18 @@ void board_make(Board *board, MoveInfo *minfo)
 
     if (board->side == BLACK)
         ++board->movenb;
+    ++board->rule50;
 
-    if (attacker == PAWN || target != EMPTY)
-        board->rule50 = 0;
-    else
-        ++board->rule50;
-
-    board->piecebb[target] &= ~tobb;
-    board->piecebb[attacker] ^= frombb | tobb;
-    board->colorbb[board->side ^ 1] &= ~tobb;
-    board->colorbb[board->side] ^= frombb | tobb;
+    board->piecebb[attacker] ^= from_bb | to_bb;
+    board->colorbb[board->side] ^= from_bb | to_bb;
     board->piecelist[from] = EMPTY;
     board->piecelist[to] = attacker;
+    if (target != EMPTY) {
+        board->piecebb[target] ^= to_bb;
+        board->colorbb[board->side ^ 1] ^= to_bb;
+        board->rule50 = 0;
+    }
+
     board->side ^= 1;
 
     board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
@@ -758,14 +763,14 @@ void board_make(Board *board, MoveInfo *minfo)
 void board_unmake(Board *board, MoveInfo *minfo)
 {
     int from, to, flags, promo, rule50, eptarget;
-    U64 frombb, tobb;
+    U64 from_bb, to_bb;
     Piece attacker, target;
     Castling castling;
 
     from = from(minfo->move);
-    frombb = 1ull << from;
+    from_bb = 1ull << from;
     to = to(minfo->move);
-    tobb = 1ull << to;
+    to_bb = 1ull << to;
     flags = flags(minfo->move);
     promo = promo(minfo->move);
     attacker = minfo->attacker;
@@ -775,19 +780,20 @@ void board_unmake(Board *board, MoveInfo *minfo)
     castling = castling(minfo->undo);
 
     board->side ^= 1;
-    board->colorbb[board->side] ^= frombb | tobb;
-    if (target != EMPTY)
-        board->colorbb[board->side ^ 1] |= tobb;
-    board->piecebb[attacker] ^= frombb | tobb;
-    board->piecebb[target] |= tobb;
-    board->piecelist[from] = attacker;
-    board->piecelist[to] = target;
-
-    board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
-    board->piecebb[EMPTY] = ~board->colorbb[BOTH];
-
-    board->rule50 = rule50;
 
     if (board->side == BLACK)
         --board->movenb;
+    board->rule50 = rule50;
+
+    board->piecebb[attacker] ^= from_bb | to_bb;
+    board->colorbb[board->side] ^= from_bb | to_bb;
+    board->piecelist[from] = attacker;
+    board->piecelist[to] = target;
+    if (target != EMPTY) {
+        board->piecebb[target] ^= to_bb;
+        board->colorbb[board->side ^ 1] ^= to_bb;
+    }
+
+    board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
+    board->piecebb[EMPTY] = ~board->colorbb[BOTH];
 }

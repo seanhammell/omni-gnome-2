@@ -34,7 +34,7 @@ void parsego(Board *board, SearchInfo *sinfo, char *line)
     line += 3;
     cp = line;
 
-    if ((cp = strstr(line, "depth")))
+    if ((cp = strstr(line, "depth")) || (cp = strstr(line, "perft")))
         depth =  atoi(cp + 6);
 
     sinfo->depth = depth;
@@ -44,7 +44,7 @@ void parsego(Board *board, SearchInfo *sinfo, char *line)
 
     if (!strncmp(line, "perft", 5)) {
         sinfo->leafnodes = search_perft(board, sinfo, sinfo->depth);
-        printf("nodes searched: %llu\n", sinfo->leafnodes);
+        printf("\nNodes searched: %llu\n\n", sinfo->leafnodes);
     }
 }
 
