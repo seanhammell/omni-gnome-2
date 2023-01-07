@@ -43,7 +43,6 @@
 #define CASTLE_(x)  (x << 12)
 
 typedef struct tables Tables;
-typedef uint32_t Move;
 
 enum colors { WHITE, BLACK, BOTH };
 enum pieces { EMPTY, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING };
@@ -70,6 +69,8 @@ struct tables {
     U64 diag_masks[64];
     U64 anti_masks[64];
 
+    U64 pawn_quiets[2][64];
+    U64 pawn_caps[2][64];
     U64 knight_moves[64];
     U64 king_moves[64];
     U64 rays[8][256];
@@ -140,6 +141,39 @@ void initmasks()
         tables.file_masks[i] = filemask(i);
         tables.diag_masks[i] = diagmask(i);
         tables.anti_masks[i] = antimask(i);
+    }
+}
+
+/**
+ * initpawns
+ *  intitialize the pawn quiet and capture moves lookup tables
+ */
+void initpawns()
+{
+    int i;
+    U64 bit;
+
+    for (i = 0, bit = 1; i < 64; ++i, bit <<= 1) {
+        tables.pawn_quiets[0][i] = 0;
+        tables.pawn_quiets[1][i] = 0;
+        tables.pawn_caps[0][i] = 0;
+        tables.pawn_caps[1][i] = 0;
+
+        if (i < 8 || i > 55)
+            continue;
+
+        tables.pawn_quiets[0][i] = bit << 8;
+        tables.pawn_quiets[1][i] = bit >> 8;
+
+        if (!(bit & tables.file_masks[0])) {
+            tables.pawn_caps[0][i] |= bit << 7;
+            tables.pawn_caps[1][i] |= bit >> 9;
+        }
+
+        if (!(bit & tables.file_masks[7])) {
+            tables.pawn_caps[0][i] |= bit << 9;
+            tables.pawn_caps[1][i] |= bit >> 7;
+        }
     }
 }
 
@@ -244,6 +278,7 @@ void initcastling()
 void board_inittables()
 {
     initmasks();
+    initpawns();
     initknights();
     initkings();
     initrays();

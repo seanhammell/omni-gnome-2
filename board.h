@@ -7,6 +7,7 @@ typedef uint16_t U16;
 typedef uint64_t U64;
 
 typedef struct board Board;
+typedef uint32_t Move;
 
 struct board {
     U64 colorbb[3];
