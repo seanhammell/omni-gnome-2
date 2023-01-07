@@ -2,6 +2,11 @@
 
 #include "board.h"
 
+#define MOVE_WHITE_OO   0xc6184
+#define MOVE_WHITE_OOO  0xc6084
+#define MOVE_BLACK_OO   0xc6fbc
+#define MOVE_BLACK_OOO  0xc6ebc
+
 #define LSB(x)      __builtin_ctzll(x)
 #define POPCNT(x)   __builtin_popcountll(x)
 
@@ -12,10 +17,8 @@
 #define OPEN_OOO(b)         (!(14ull << (56 * b->side) & b->colorbb[BOTH]))
 #define SAFE_OO(b)          (!(96ull << (56 * b->side) & b->seen))
 #define SAFE_OOO(b)         (!(12ull << (56 * b->side) & b->seen))
-#define MOVE_WHITE_OO       0xc6184
-#define MOVE_WHITE_OOO      0xc6084
-#define MOVE_BLACK_OO       0xc6fbc
-#define MOVE_BLACK_OOO      0xc6ebc
+#define ROOK_SWITCH_OO(b)   (160ull << (56 * b->side))
+#define ROOK_SWITCH_OOO(b)  (9ull << (56 * b->side))
 
 #define FROM(x)     (x & 63)
 #define TO(x)       ((x >> 6) & 63)
@@ -40,6 +43,25 @@
 #define CASTLE_(x)  (x << 12)
 
 typedef struct tables Tables;
+typedef uint32_t Move;
+
+enum colors { WHITE, BLACK, BOTH };
+enum pieces { EMPTY, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING };
+enum castling {
+    NO_CASTLE = 0,
+
+    WHITE_OO = 1,
+    BLACK_OO = 2,
+    WHITE_OOO = 4,
+    BLACK_OOO = 8,
+
+    WHITE_CASTLE = WHITE_OO | WHITE_OOO,
+    BLACK_CASTLE = BLACK_OO | BLACK_OOO,
+
+    ALL_CASTLE = WHITE_CASTLE | BLACK_CASTLE
+};
+enum flags { NO_FLAG, PROMOTION, ENPASSANT, CASTLING };
+enum slider { CROSS, DIAG };
 
 struct tables {
     U64 bit[64];
@@ -51,6 +73,9 @@ struct tables {
     U64 knight_moves[64];
     U64 king_moves[64];
     U64 rays[8][256];
+
+    int revoke_castling[64];
+    U64 rook_switch[64];
 };
 
 static Tables tables;
@@ -191,6 +216,27 @@ void initrays()
     }
 }
 
+void initcastling()
+{
+    int i;
+
+    for (i = 0; i < 64; ++i) {
+        tables.revoke_castling[i] = ALL_CASTLE;
+        tables.rook_switch[i] = 0;
+    }
+
+    tables.revoke_castling[0] ^= WHITE_OOO;
+    tables.rook_switch[2] = 9ull;
+    tables.revoke_castling[4] ^= WHITE_CASTLE;
+    tables.rook_switch[6] = 160ull;
+    tables.revoke_castling[7] ^= WHITE_OO;
+    tables.revoke_castling[56] ^= BLACK_OOO;
+    tables.rook_switch[58] = 648518346341351424ull;
+    tables.revoke_castling[60] ^= BLACK_CASTLE;
+    tables.rook_switch[62] = 11529215046068469760ull;
+    tables.revoke_castling[63] ^= BLACK_OO;
+}
+
 /**
  * board_inittables
  *  Call table initialization functions
@@ -201,6 +247,7 @@ void board_inittables()
     initknights();
     initkings();
     initrays();
+    initcastling();
 }
 
 /**
@@ -223,7 +270,7 @@ void board_parsefen(Board *board, char *fen)
     for (i = 0; i < 7; ++i)
         board->piecebb[i] = 0;
     board->castling = NO_CASTLE;
-    board->eptarget = 64;
+    board->eptarget = 0;
 
     file = 0;
     rank = 7;
@@ -316,7 +363,7 @@ void board_display(const Board *board)
             printf("q");
     }
     printf("\nen passant: ");
-    if (board->eptarget == 64)
+    if (board->eptarget == 0)
         printf("-");
     else
         printf("%d", board->eptarget);
@@ -758,7 +805,7 @@ int board_generate(Board *board, Move *movelist)
 
 /**
  * domove
- *  update the bitboards based on the specified move
+ *  update the board based on the specified move
  */
 void domove(Board *board, Move move)
 {
@@ -776,6 +823,17 @@ void domove(Board *board, Move move)
     if (target != EMPTY) {
         board->piecebb[target] ^= tables.bit[to];
         board->colorbb[board->side ^ 1] ^= tables.bit[to];
+        if (target == ROOK)
+            board->castling &= tables.revoke_castling[to];
+    }
+    if (attacker == ROOK) {
+        board->castling &= tables.revoke_castling[from];
+    } else if (attacker == KING) {
+        board->castling &= tables.revoke_castling[from];
+        if (flags == CASTLING) {
+            board->piecebb[ROOK] ^= tables.rook_switch[to];
+            board->colorbb[board->side] ^= tables.rook_switch[to];
+        }
     }
     board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
     board->piecebb[EMPTY] = ~board->colorbb[BOTH];
@@ -793,9 +851,8 @@ void board_make(Board *board, Move move)
     undo |= ENP_(board->eptarget);
     undo |= CASTLE_(board->castling);
     board->undo[board->plynb] = undo;
-
-    ++board->rule50;
     ++board->plynb;
+    ++board->rule50;
 
     domove(board, move);
 
