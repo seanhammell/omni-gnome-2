@@ -630,6 +630,55 @@ void setdanger(Board *board)
 }
 
 /**
+ * pawnquiets
+ *  return a bitboard of pawn pushes from the given square
+ */
+U64 pawnquiets(const Board *board, const int i)
+{
+    U64 targets;
+
+    targets = tables.pawn_quiets[board->side][i];
+    targets &= board->piecebb[EMPTY];
+    targets &= board->checkmask;
+    return targets;
+}
+
+/**
+ * pawncaps
+ *  return a bitboard of pawn captures from the given square
+ */
+U64 pawncaps(const Board *board, const int i)
+{
+    U64 targets;
+
+    targets = tables.pawn_caps[board->side][i];
+    targets &= board->colorbb[board->side ^ 1];
+    targets &= board->checkmask;
+    return targets;
+}
+
+/**
+ * pawntargets
+ *  return a bitboard of pawn targets from the given square
+ */
+U64 pawntargets(const Board *board, const int i)
+{
+    return pawnquiets(board, i) | pawncaps(board, i);
+}
+
+/**
+ * pinnedpawn
+ *  return a bitboard of targets for a pinned pawn
+ */
+U64 pinnedpawn(const Board *board, const int i)
+{
+    if (board->pins[CROSS] & tables.bit[i])
+        return pawnquiets(board, i) & board->pins[CROSS];
+    else
+        return pawncaps(board, i) & board->pins[DIAG];
+}
+
+/**
  * knighttargets
  *  return a bitboard of knight targets from the given square
  */
