@@ -408,12 +408,18 @@ void board_display(const Board *board)
 
 void board_printmove(Move move)
 {
-    int from, to;
+    int from, to, flags, promo;
+    const char pchars[] = " PNBRQK??pnbrqk";
 
     from = FROM(move);
     to = TO(move);
+    flags = FLAGS(move);
+    promo = PROMO(move);
+
     printf("%c%c", 'a' + (from % 8), '1' + (from / 8));
     printf("%c%c", 'a' + (to % 8), '1' + (to / 8));
+    if (flags == PROMOTION)
+        printf("%c", pchars[promo + 10]);
 }
 
 /**
@@ -652,7 +658,7 @@ U64 pawncaps(const Board *board, const int i)
     U64 targets;
 
     targets = tables.pawn_caps[board->side][i];
-    targets &= board->colorbb[board->side ^ 1];
+    targets &= (board->colorbb[board->side ^ 1] | tables.bit[board->eptarget]);
     targets &= board->checkmask;
     return targets;
 }
@@ -801,8 +807,20 @@ void serialize(const Board *board, Move *movelist, int *count, const int piece,
                 if (board->piecebb[cap] & tables.bit[j])
                     break;
             Move move = FROM_(i) | TO_(j) | ATTACKER_(piece) | TARGET_(cap);
-            movelist[*count] = move;
-            ++(*count);
+            if (piece == PAWN) {
+                if ((j & 56) == 0 || (j & 56) == 56) {
+                    move |= FLAGS_(PROMOTION);
+                    movelist[(*count)++] = move | PROMO_(QUEEN);
+                    movelist[(*count)++] = move | PROMO_(ROOK);
+                    movelist[(*count)++] = move | PROMO_(BISHOP);
+                } else if ((i & 56) == 8 || (i & 56) == 48) {
+                    if ((i ^ j) == 24) {
+                        int d = board->side == WHITE ? i + 8 : i - 8;
+                        targets |= pawnquiets(board, d);
+                    }
+                }
+            }
+            movelist[(*count)++] = move;
         }
     }
 }
@@ -849,15 +867,13 @@ void castlegen(const Board *board, Move *movelist, int *count)
     if (RIGHTS_OO(board)) {
         if (OPEN_OO(board) && SAFE_OO(board)) {
             move = board->side == WHITE ? MOVE_WHITE_OO : MOVE_BLACK_OO;
-            movelist[*count] = move;
-            ++(*count);
+            movelist[(*count)++] = move;
         }
     }
     if (RIGHTS_OOO(board)) {
         if (OPEN_OOO(board) && SAFE_OOO(board)) {
             move = board->side == WHITE ? MOVE_WHITE_OOO : MOVE_BLACK_OOO;
-            movelist[*count] = move;
-            ++(*count);
+            movelist[(*count)++] = move;
         }
     }
 }
@@ -875,6 +891,7 @@ int board_generate(Board *board, Move *movelist)
     setdanger(board);
 
     if (board->nchecks < 2) {
+        movegen(board, movelist, &count, PAWN, pawntargets, pinnedpawn);
         movegen(board, movelist, &count, KNIGHT, knighttargets, pinnedknight);
         movegen(board, movelist, &count, BISHOP, bishoptargets, pinnedbishop);
         movegen(board, movelist, &count, ROOK, rooktargets, pinnedrook);
