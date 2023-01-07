@@ -5,6 +5,18 @@
 #define LSB(x)      __builtin_ctzll(x)
 #define POPCNT(x)   __builtin_popcountll(x)
 
+#define CASTLE_RIGHTS(b)    (b->castling & (WHITE_CASTLE << b->side))
+#define RIGHTS_OO(b)        (b->castling & (WHITE_OO << b->side))
+#define RIGHTS_OOO(b)       (b->castling & (WHITE_OOO << b->side))
+#define OPEN_OO(b)          (!(96ull << (56 * b->side) & b->colorbb[BOTH]))
+#define OPEN_OOO(b)         (!(14ull << (56 * b->side) & b->colorbb[BOTH]))
+#define SAFE_OO(b)          (!(96ull << (56 * b->side) & b->seen))
+#define SAFE_OOO(b)         (!(12ull << (56 * b->side) & b->seen))
+#define MOVE_WHITE_OO       0xc6184
+#define MOVE_WHITE_OOO      0xc6084
+#define MOVE_BLACK_OO       0xc6fbc
+#define MOVE_BLACK_OOO      0xc6ebc
+
 #define FROM(x)     (x & 63)
 #define TO(x)       ((x >> 6) & 63)
 #define ATTACKER(x) ((x >> 12) & 7)
@@ -696,6 +708,30 @@ void kinggen(const Board *board, Move *movelist, int *count)
 }
 
 /**
+ * castlegen
+ *  add legal castling moves to the move list
+ */
+void castlegen(const Board *board, Move *movelist, int *count)
+{
+    Move move;
+
+    if (RIGHTS_OO(board)) {
+        if (OPEN_OO(board) && SAFE_OO(board)) {
+            move = board->side == WHITE ? MOVE_WHITE_OO : MOVE_BLACK_OO;
+            movelist[*count] = move;
+            ++(*count);
+        }
+    }
+    if (RIGHTS_OOO(board)) {
+        if (OPEN_OOO(board) && SAFE_OOO(board)) {
+            move = board->side == WHITE ? MOVE_WHITE_OOO : MOVE_BLACK_OOO;
+            movelist[*count] = move;
+            ++(*count);
+        }
+    }
+}
+
+/**
  * board_generate
  *  generate all legal moves in the current position and return the count
  */
@@ -712,6 +748,8 @@ int board_generate(Board *board, Move *movelist)
         movegen(board, movelist, &count, BISHOP, bishoptargets, pinnedbishop);
         movegen(board, movelist, &count, ROOK, rooktargets, pinnedrook);
         movegen(board, movelist, &count, QUEEN, queentargets, pinnedqueen);
+        if (!board->nchecks && CASTLE_RIGHTS(board))
+            castlegen(board, movelist, &count);
     }
     kinggen(board, movelist, &count);
 
