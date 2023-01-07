@@ -5,15 +5,10 @@
 
 typedef uint16_t U16;
 typedef uint64_t U64;
-
-typedef enum colors Color;
-typedef enum pieces Piece;
-typedef enum castling Castling;
-
 typedef enum slider Slider;
 
 typedef struct board Board;
-typedef struct minfo MoveInfo;
+typedef uint32_t Move;
 
 enum colors { WHITE, BLACK, BOTH };
 enum pieces { EMPTY, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING };
@@ -38,10 +33,11 @@ struct board {
     U64 colorbb[3];
     U64 piecebb[7];
     int side;
-    Castling castling;
+    int castling;
     int eptarget;
     int rule50;
-    int movenb;
+    int plynb;
+    U16 undo[1024];
 
     U64 pins[2];
     U64 seen;
@@ -49,22 +45,15 @@ struct board {
     int nchecks;
 };
 
-struct minfo {
-    Piece attacker;
-    Piece target;
-    U16 move;
-    U16 undo;
-};
-
 void board_inittables();
 
 void board_parsefen(Board *board, char *fen);
 void board_display(const Board *board);
-void board_printmove(MoveInfo *minfo);
+void board_printmove(Move move);
 
-int board_generate(Board *board, MoveInfo *movelist);
+int board_generate(Board *board, Move *movelist);
 
-void board_make(Board *board, MoveInfo *minfo);
-void board_unmake(Board *board, MoveInfo *minfo);
+void board_make(Board *board, Move move);
+void board_unmake(Board *board, Move move);
 
 #endif  /* BOARD_H */

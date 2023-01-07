@@ -22,7 +22,7 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
 {
     int i;
     U64 branch_nodes, nodes;
-    MoveInfo movelist[256];
+    Move movelist[256];
 
     if (depth == 1 && sinfo->depth != 1)
         return board_generate(board, movelist);
@@ -34,14 +34,14 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
     sinfo->nodes += count;
     nodes = 0;
     for (i = 0; i < count; ++i) {
-        board_make(board, &movelist[i]);
+        board_make(board, movelist[i]);
         branch_nodes = search_perft(board, sinfo, depth - 1);
         nodes += branch_nodes;
         if (depth == sinfo->depth) {
-            board_printmove(&movelist[i]);
+            board_printmove(movelist[i]);
             printf(" %llu\n", branch_nodes);
         }
-        board_unmake(board, &movelist[i]);
+        board_unmake(board, movelist[i]);
     }
 
     return nodes;
