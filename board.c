@@ -25,14 +25,14 @@
 #define ATTACKER(x) ((x >> 12) & 7)
 #define TARGET(x)   ((x >> 15) & 7)
 #define FLAGS(x)    ((x >> 18) & 3)
-#define PROMO(x)    ((x >> 20) & 3)
+#define PROMO(x)    (((x >> 20) & 3) + KNIGHT)
 
 #define FROM_(x)        (x)
 #define TO_(x)          (x << 6)
 #define ATTACKER_(x)    (x << 12)
 #define TARGET_(x)      (x << 15)
 #define FLAGS_(x)       (x << 18)
-#define PROMO_(x)       (x << 20)
+#define PROMO_(x)       ((x - KNIGHT) << 20)
 
 #define RULE50(x)   (x & 63)
 #define ENP(x)      ((x >> 6) & 63)
@@ -154,16 +154,10 @@ void initpawns()
     U64 bit;
 
     for (i = 0, bit = 1; i < 64; ++i, bit <<= 1) {
-        tables.pawn_quiets[0][i] = 0;
-        tables.pawn_quiets[1][i] = 0;
-        tables.pawn_caps[0][i] = 0;
-        tables.pawn_caps[1][i] = 0;
-
-        if (i < 8 || i > 55)
-            continue;
-
         tables.pawn_quiets[0][i] = bit << 8;
         tables.pawn_quiets[1][i] = bit >> 8;
+        tables.pawn_caps[0][i] = 0;
+        tables.pawn_caps[1][i] = 0;
 
         if (!(bit & tables.file_masks[0])) {
             tables.pawn_caps[0][i] |= bit << 7;
@@ -571,6 +565,28 @@ void checkray(Board *board, U64 (*slide)(const Board *, int), const int slider)
 }
 
 /**
+ * pawndanger
+ *  compute the squares seen and checks given by enemy pawns
+ */
+void pawndanger(Board *board)
+{
+    int i;
+    U64 pawns;
+
+    const U64 king = board->piecebb[KING] & board->colorbb[board->side];
+    pawns = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
+
+    i = LSB(king);
+    const U64 checks = tables.pawn_caps[board->side][i] & pawns;
+    board->checkmask |= checks;
+    board->nchecks += POPCNT(checks);
+    while (pawns) {
+        i = pullbit(&pawns);
+        board->seen |= tables.pawn_caps[board->side ^ 1][i];
+    }
+}
+
+/**
  * knightdanger
  *  compute the squares seen and checks given by enemy knights
  */
@@ -628,6 +644,7 @@ void setdanger(Board *board)
         checkray(board, slide[i], sliders[i]);
     }
 
+    pawndanger(board);
     knightdanger(board);
     kingdanger(board);
 
@@ -818,6 +835,8 @@ void serialize(const Board *board, Move *movelist, int *count, const int piece,
                         int d = board->side == WHITE ? i + 8 : i - 8;
                         targets |= pawnquiets(board, d);
                     }
+                } else if (j == board->eptarget) {
+                    move |= FLAGS_(ENPASSANT);
                 }
             }
             movelist[(*count)++] = move;
@@ -921,13 +940,23 @@ void domove(Board *board, Move move)
 
     board->piecebb[attacker] ^= tables.bit[from] | tables.bit[to];
     board->colorbb[board->side] ^= tables.bit[from] | tables.bit[to];
-    if (target != EMPTY) {
-        board->piecebb[target] ^= tables.bit[to];
-        board->colorbb[board->side ^ 1] ^= tables.bit[to];
-        if (target == ROOK)
-            board->castling &= tables.revoke_castling[to];
-    }
-    if (attacker == ROOK) {
+    if (attacker == PAWN) {
+        if ((from ^ to) == 16) {
+            U64 enemy_pawns = board->piecebb[PAWN];
+            enemy_pawns &= board->colorbb[board->side ^ 1];
+            if ((tables.bit[to - 1] & enemy_pawns & ~tables.file_masks[7]) ||
+                (tables.bit[to + 1] & enemy_pawns & ~tables.file_masks[0]))
+                board->eptarget = from ^ 24;
+        }
+        if (flags == PROMOTION) {
+            board->piecebb[PAWN] ^= tables.bit[to];
+            board->piecebb[promo] ^= tables.bit[to];
+        } else if (flags == ENPASSANT) {
+            target = PAWN;
+            to = board->side == WHITE ? to - 8 : to + 8;
+        }
+        board->rule50 = 0;
+    } else if (attacker == ROOK) {
         board->castling &= tables.revoke_castling[from];
     } else if (attacker == KING) {
         board->castling &= tables.revoke_castling[from];
@@ -936,13 +965,19 @@ void domove(Board *board, Move move)
             board->colorbb[board->side] ^= tables.rook_switch[to];
         }
     }
+    if (target != EMPTY) {
+        board->piecebb[target] ^= tables.bit[to];
+        board->colorbb[board->side ^ 1] ^= tables.bit[to];
+        if (target == ROOK)
+            board->castling &= tables.revoke_castling[to];
+    }
     board->colorbb[BOTH] = board->colorbb[WHITE] | board->colorbb[BLACK];
     board->piecebb[EMPTY] = ~board->colorbb[BOTH];
 }
 
 /**
  * board_make
- *  Play the move, updating all relevant board information
+ *  play the move, updating all relevant board information
  */
 void board_make(Board *board, Move move)
 {
@@ -954,6 +989,7 @@ void board_make(Board *board, Move move)
     board->undo[board->plynb] = undo;
     ++board->plynb;
     ++board->rule50;
+    board->eptarget = 0;
 
     domove(board, move);
 
@@ -962,7 +998,7 @@ void board_make(Board *board, Move move)
 
 /**
  * board_unmake
- *  Undo the move, resetting all relevant board information
+ *  undo the move, resetting all relevant board information
  */
 void board_unmake(Board *board, Move move)
 {
