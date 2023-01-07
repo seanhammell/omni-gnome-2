@@ -658,10 +658,16 @@ void setdanger(Board *board)
  */
 U64 pawnquiets(const Board *board, const int i)
 {
+    int dblpush;
     U64 targets;
 
     targets = tables.pawn_quiets[board->side][i];
     targets &= board->piecebb[EMPTY];
+    if (targets && ((i & 56) == 8 || (i & 56) == 48)) {
+        dblpush = board->side == WHITE ? i + 8 : i - 8;
+        targets |= tables.pawn_quiets[board->side][dblpush];
+        targets &= board->piecebb[EMPTY];
+    }
     targets &= board->checkmask;
     return targets;
 }
@@ -830,11 +836,6 @@ void serialize(const Board *board, Move *movelist, int *count, const int piece,
                     movelist[(*count)++] = move | PROMO_(QUEEN);
                     movelist[(*count)++] = move | PROMO_(ROOK);
                     movelist[(*count)++] = move | PROMO_(BISHOP);
-                } else if ((i & 56) == 8 || (i & 56) == 48) {
-                    if ((i ^ j) == 24) {
-                        int d = board->side == WHITE ? i + 8 : i - 8;
-                        targets |= pawnquiets(board, d);
-                    }
                 } else if (j == board->eptarget) {
                     move |= FLAGS_(ENPASSANT);
                 }

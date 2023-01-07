@@ -24,13 +24,18 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
     U64 branch_nodes, nodes;
     Move movelist[256];
 
-    if (depth == 1 && sinfo->depth != 1)
-        return board_generate(board, movelist);
-    
-    if (depth == 0)
-        return 1ull;
-
     const int count = board_generate(board, movelist);
+
+    if (depth == 1) {
+        if (sinfo->depth == 1) {
+            for (i = 0; i < count; ++i) {
+                board_printmove(movelist[i]);
+                printf(" 1\n");
+            }
+        }
+        return count;
+    }
+
     sinfo->nodes += count;
     nodes = 0;
     for (i = 0; i < count; ++i) {
