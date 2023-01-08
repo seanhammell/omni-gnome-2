@@ -90,7 +90,7 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
 {
     int i;
     U64 nodes, branch_nodes;
-    Move movelist[256];
+    Move movelist[128];
 
     const int count = board_generate(board, movelist);
 

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 
 #include "board.h"
@@ -86,7 +87,7 @@ struct tables {
 static Tables tables;
 static const char pchars[] = " PNBRQK??pnbrqk";
 static const U64 HASH = 2859235813007982802;
-static U64 hashxor[4096];
+static U64 hashxor[512];
 
 /**
  * rankmask
@@ -295,7 +296,7 @@ void board_inithash()
     int i;
     U64 n;
 
-    for (i = 0, n = 1; i < 4096; ++i) {
+    for (i = 0, n = 1; i < 512; ++i) {
         n ^= HASH;
         ++n;
         hashxor[i] = n;
@@ -393,7 +394,7 @@ void board_parsefen(Board *board, char *fen)
 
 /**
  * board_parsemove
- *  decode the moves passed from uci parsepos and play them
+ *  play the specified string of moves in the current position
  */
 void board_parsemoves(Board *board, char *line)
 {
@@ -981,6 +982,7 @@ void serialize(Board *board, Move *movelist, int *count, const int piece,
                         continue;
                 }
             }
+            assert(*count < 128);
             movelist[(*count)++] = move;
         }
     }
@@ -1028,12 +1030,14 @@ void castlegen(const Board *board, Move *movelist, int *count)
     if (RIGHTS_OO(board)) {
         if (OPEN_OO(board) && SAFE_OO(board)) {
             move = board->side == WHITE ? MOVE_WHITE_OO : MOVE_BLACK_OO;
+            assert(*count < 128);
             movelist[(*count)++] = move;
         }
     }
     if (RIGHTS_OOO(board)) {
         if (OPEN_OOO(board) && SAFE_OOO(board)) {
             move = board->side == WHITE ? MOVE_WHITE_OOO : MOVE_BLACK_OOO;
+            assert(*count < 128);
             movelist[(*count)++] = move;
         }
     }
@@ -1130,6 +1134,7 @@ void board_make(Board *board, Move move)
     undo |= CASTLE_(board->castling);
     board->undo[board->plynb] = undo;
     ++board->plynb;
+    assert(board->plynb < 256);
     ++board->rule50;
     board->eptarget = 0;
 
@@ -1157,7 +1162,7 @@ void board_unmake(Board *board, Move move)
 
 /**
  * isrepitition
- *  check for a threefold repitition draw
+ *  return whether the current position is a threefold repitition
  */
 int isrepitition(const Board *board)
 {
@@ -1175,7 +1180,7 @@ int isrepitition(const Board *board)
 
 /**
  * board_isdraw
- *  check whether the game is drawn in the current position
+ *  return whether the current position is a draw
  */
 int board_isdraw(const Board *board, int legalmoves)
 {
@@ -1188,7 +1193,7 @@ int board_isdraw(const Board *board, int legalmoves)
 
 /**
  * board_ischeckmate
- *  check whether the current side is in checkmate
+ *  return whether the current side is in checkmate
  */
 int board_ischeckmate(const Board *board, int legalmoves)
 {
