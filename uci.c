@@ -24,6 +24,9 @@ void parsepos(Board *board, char *line)
         board_parsefen(board, cp + 4);
     else
         board_parsefen(board, SFEN);
+
+    if ((cp = strstr(cp, "moves")))
+        board_parsemoves(board, cp + 6);
 }
 
 void parsego(Board *board, SearchInfo *sinfo, char *line)

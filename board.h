@@ -30,6 +30,7 @@ void board_inittables();
 void board_inithash();
 
 void board_parsefen(Board *board, char *fen);
+void board_parsemoves(Board *board, char *line);
 void board_display(const Board *board);
 void board_printmove(Move move);
 

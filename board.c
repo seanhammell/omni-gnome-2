@@ -84,7 +84,7 @@ struct tables {
 };
 
 static Tables tables;
-
+static const char pchars[] = " PNBRQK??pnbrqk";
 static const U64 HASH = 2859235813007982802;
 static U64 hashxor[4096];
 
@@ -303,6 +303,28 @@ void board_inithash()
 }
 
 /**
+ * hashposition
+ *  calculate a value for the current position using the hash table
+ */
+U64 hashposition(const Board *board)
+{
+    int i, j;
+    U64 key, position;
+
+    position = 0;
+    for (i = 0; i < 2; ++i) {
+        for (j = 1; j < 7; ++j) {
+            position = board->piecebb[j] & board->colorbb[i];
+            position ^= hashxor[8 * i + j];
+            key ^= position;
+        }
+    }
+    i = FLAG_HASH(board->side, board->eptarget, board->castling);
+    key ^= hashxor[i];
+    return key;
+}
+
+/**
  * board_parsefen
  *  initialize the board based on the provided FEN string.
  */
@@ -310,7 +332,6 @@ void board_parsefen(Board *board, char *fen)
 {
     char c, pos[128], side, castle[5], ep[3];
     int rule50;
-    const char pchars[] = " PNBRQK??pnbrqk";
     int i, rank, file, color, piece;
     U64 sq;
 
@@ -367,6 +388,60 @@ void board_parsefen(Board *board, char *fen)
         board->eptarget = 8 * (ep[1] - '1') + (ep[0] - 'a');
     board->rule50 = rule50;
     board->plynb = 0;
+    board->history[board->plynb] = hashposition(board);
+}
+
+/**
+ * board_parsemove
+ *  decode the moves passed from uci parsepos and play them
+ */
+void board_parsemoves(Board *board, char *line)
+{
+    int i, rank, file;
+    int from, to, attacker, target, flags, promo;
+    Move move;
+
+    while (*line == ' ')
+        ++line;
+    while (*line != '\n') {
+        file = *line - 'a';
+        rank = *(line + 1) - '1';
+        from = 8 * rank + file;
+
+        file = *(line + 2) - 'a';
+        rank = *(line + 3) - '1';
+        to = 8 * rank + file;
+
+        for (i = 0; i < 7; ++i) {
+            if (board->piecebb[i] & tables.bit[from])
+                attacker = i;
+            if (board->piecebb[i] & tables.bit[to])
+                target = i;
+        }
+        move = FROM_(from) | TO_(to) | ATTACKER_(attacker) | TARGET_(target);
+        line += 4;
+
+        flags = 0;
+        promo = 0;
+        if (*line != ' ' && *line != '\n') {
+            i = 0;
+            while (*line != pchars[i])
+                ++i;
+            flags = PROMOTION;
+            promo = i;
+            ++line;
+        } else if (board->eptarget && to == board->eptarget) {
+            flags = ENPASSANT;
+        } else if (attacker == KING && 
+                   (tables.bit[from] ^ tables.bit[to]) % 10 == 0) {
+            flags = CASTLING;
+        }
+
+        move |= FLAGS_(flags) | PROMO_(promo);
+        board_make(board, move);
+        while (*line == ' ')
+            ++line;
+    }
 }
 
 /**
@@ -375,7 +450,6 @@ void board_parsefen(Board *board, char *fen)
  */
 void board_display(const Board *board)
 {
-    const char pchars[] = " PNBRQK??pnbrqk";
     int rank, file, color, piece;
     U64 sq;
 
@@ -423,10 +497,13 @@ void board_display(const Board *board)
     printf("\nply: %d\n\n", board->plynb);
 }
 
+/**
+ * board_printmove
+ *  print the move
+ */
 void board_printmove(Move move)
 {
     int from, to, flags, promo;
-    const char pchars[] = " PNBRQK??pnbrqk";
 
     from = FROM(move);
     to = TO(move);
@@ -989,28 +1066,6 @@ int board_generate(Board *board, Move *movelist)
 }
 
 /**
- * hashkey
- *  generate a hash key for the current position
- */
-U64 hashkey(const Board *board)
-{
-    int i, j;
-    U64 key, position;
-
-    position = 0;
-    for (i = 0; i < 2; ++i) {
-        for (j = 1; j < 7; ++j) {
-            position = board->piecebb[j] & board->colorbb[i];
-            position ^= hashxor[8 * i + j];
-            key ^= position;
-        }
-    }
-    i = FLAG_HASH(board->side, board->eptarget, board->castling);
-    key ^= hashxor[i];
-    return key;
-}
-
-/**
  * domove
  *  update the board based on the specified move
  */
@@ -1074,7 +1129,6 @@ void board_make(Board *board, Move move)
     undo |= ENP_(board->eptarget);
     undo |= CASTLE_(board->castling);
     board->undo[board->plynb] = undo;
-    board->history[board->plynb] = hashkey(board);
     ++board->plynb;
     ++board->rule50;
     board->eptarget = 0;
@@ -1082,6 +1136,7 @@ void board_make(Board *board, Move move)
     domove(board, move);
 
     board->side ^= 1;
+    board->history[board->plynb] = hashposition(board);
 }
 
 /**
