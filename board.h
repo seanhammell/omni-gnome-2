@@ -18,6 +18,7 @@ struct board {
     int rule50;
     int plynb;
     U16 undo[1024];
+    U64 history[1024];
 
     U64 pins[2];
     U64 seen;
@@ -26,6 +27,7 @@ struct board {
 };
 
 void board_inittables();
+void board_inithash();
 
 void board_parsefen(Board *board, char *fen);
 void board_display(const Board *board);

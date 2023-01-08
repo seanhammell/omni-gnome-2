@@ -83,6 +83,9 @@ struct tables {
 
 static Tables tables;
 
+static const U64 HASH = 2859235813007982802;
+static U64 hashxor[4096];
+
 /**
  * rankmask
  *  compute the rank mask for the given square
@@ -279,6 +282,22 @@ void board_inittables()
     initkings();
     initrays();
     initcastling();
+}
+
+/**
+ * board_inithash
+ *  Initialize hashxor table with random U64 values
+ */
+void board_inithash()
+{
+    int i;
+    U64 n;
+
+    for (i = 0, n = 1; i < 4096; ++i) {
+        n *= HASH;
+        ++n;
+        hashxor[i] = n;
+    }
 }
 
 /**

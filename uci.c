@@ -67,6 +67,7 @@ void uci_loop(void)
     SearchInfo sinfo;
 
     board_inittables();
+    board_inithash();
 
     for (;;) {
         memset(&line, 0, MAXBUFF);
