@@ -44,6 +44,8 @@
 #define ENP_(x)     (x << 6)
 #define CASTLE_(x)  (x << 12)
 
+#define FLAG_HASH(s, e, c)   (s | ((e % 15) << 6) | (c << 12))
+
 typedef struct tables Tables;
 
 enum colors { WHITE, BLACK, BOTH };
@@ -987,6 +989,28 @@ int board_generate(Board *board, Move *movelist)
 }
 
 /**
+ * hashkey
+ *  generate a hash key for the current position
+ */
+U64 hashkey(const Board *board)
+{
+    int i, j;
+    U64 key, position;
+
+    position = 0;
+    for (i = 0; i < 2; ++i) {
+        for (j = 1; j < 7; ++j) {
+            position = board->piecebb[j] & board->colorbb[i];
+            position ^= hashxor[8 * i + j];
+            key ^= position;
+        }
+    }
+    i = FLAG_HASH(board->side, board->eptarget, board->castling);
+    key ^= hashxor[i];
+    return key;
+}
+
+/**
  * domove
  *  update the board based on the specified move
  */
@@ -1050,6 +1074,7 @@ void board_make(Board *board, Move move)
     undo |= ENP_(board->eptarget);
     undo |= CASTLE_(board->castling);
     board->undo[board->plynb] = undo;
+    board->history[board->plynb] = hashkey(board);
     ++board->plynb;
     ++board->rule50;
     board->eptarget = 0;
