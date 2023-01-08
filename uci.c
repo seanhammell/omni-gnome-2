@@ -38,13 +38,20 @@ void parsego(Board *board, SearchInfo *sinfo, char *line)
         depth =  atoi(cp + 6);
 
     sinfo->depth = depth;
+    sinfo->tstart = search_gettimems();
 
     if (depth == -1)
         sinfo->depth = MAXDEPTH;
 
     if (!strncmp(line, "perft", 5)) {
-        sinfo->leafnodes = search_perft(board, sinfo, sinfo->depth);
-        printf("\nNodes searched: %llu\n\n", sinfo->leafnodes);
+        search_perft(board, sinfo, sinfo->depth);
+        sinfo->tstop = search_gettimems();
+        printf("\nNodes searched: %llu\n\n\n", sinfo->nodes);
+        printf("==========\n");
+        printf("Total time (ms)\t: %llu\n", sinfo->tstop - sinfo->tstart);
+        printf("Nodes searched\t: %llu\n", sinfo->nodes);
+        printf("MNodes/second\t: %.1f\n",
+               sinfo->nodes / ((sinfo->tstop - sinfo->tstart) * 1000.0f));
     }
 }
 

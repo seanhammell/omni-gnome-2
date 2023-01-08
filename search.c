@@ -1,6 +1,18 @@
 #include <stdio.h>
+#include <sys/time.h>
 
 #include "search.h"
+
+/**
+ * gettimems
+ *  get the current time in milliseconds
+ */
+U64 search_gettimems()
+{
+    struct timeval t;
+    gettimeofday(&t, NULL);
+    return t.tv_sec * 1000ull + t.tv_usec / 1000ull;
+}
 
 /**
  * search_clearinfo
@@ -9,7 +21,6 @@
 void search_clearinfo(SearchInfo *sinfo)
 {
     sinfo->depth = 0;
-    sinfo->leafnodes = 0;
     sinfo->nodes = 0;
     sinfo->quit = 0;
 }
@@ -21,7 +32,7 @@ void search_clearinfo(SearchInfo *sinfo)
 U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
 {
     int i;
-    U64 branch_nodes, nodes;
+    U64 nodes, branch_nodes;
     Move movelist[256];
 
     const int count = board_generate(board, movelist);
@@ -33,10 +44,10 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
                 printf(" 1\n");
             }
         }
+        sinfo->nodes += count;
         return count;
     }
 
-    sinfo->nodes += count;
     nodes = 0;
     for (i = 0; i < count; ++i) {
         board_make(board, movelist[i]);
@@ -48,6 +59,5 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
         }
         board_unmake(board, movelist[i]);
     }
-
     return nodes;
 }

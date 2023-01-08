@@ -7,10 +7,16 @@ typedef struct sinfo SearchInfo;
 
 struct sinfo {
     int depth;
-    U64 leafnodes;
     U64 nodes;
+
+    int tset;
+    U64 tstart;
+    U64 tstop;
+
     int quit;
 };
+
+U64 search_gettimems();
 
 void search_clearinfo(SearchInfo *sinfo);
 
