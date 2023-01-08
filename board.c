@@ -44,7 +44,7 @@
 #define ENP_(x)     (x << 6)
 #define CASTLE_(x)  (x << 12)
 
-#define FLAG_HASH(s, e, c)   (s | ((e % 15) << 6) | (c << 12))
+#define FLAG_HASH(s, e, c)   (s | ((e % 15) << 4) | (c << 8))
 
 typedef struct tables Tables;
 
@@ -296,7 +296,7 @@ void board_inithash()
     U64 n;
 
     for (i = 0, n = 1; i < 4096; ++i) {
-        n *= HASH;
+        n ^= HASH;
         ++n;
         hashxor[i] = n;
     }
@@ -311,7 +311,7 @@ U64 hashposition(const Board *board)
     int i, j;
     U64 key, position;
 
-    position = 0;
+    key = 0;
     for (i = 0; i < 2; ++i) {
         for (j = 1; j < 7; ++j) {
             position = board->piecebb[j] & board->colorbb[i];
@@ -1153,4 +1153,36 @@ void board_unmake(Board *board, Move move)
     board->rule50 = RULE50(board->undo[board->plynb]);
     board->eptarget = ENP(board->undo[board->plynb]);
     board->castling = CASTLE(board->undo[board->plynb]);
+}
+
+/**
+ * isrepitition
+ *  check for a threefold repitition draw
+ */
+int isrepitition(const Board *board)
+{
+    int count, i, j;
+
+    count = 1;
+    for (i = board->plynb - board->rule50; i < board->plynb; ++i) {
+        if (board->history[board->plynb] == board->history[i]) {
+            ++count;
+        }
+    }
+
+    return count == 3 ? 1 : 0;
+}
+
+/**
+ * board_isdraw
+ *  check whether the game is drawn in the current position
+ */
+int board_isdraw(const Board *board, int legalmoves)
+{
+    if ((legalmoves == 0 && board->nchecks == 0) ||
+        (board->rule50 == 50) ||
+        isrepitition(board))
+        return 1;
+
+    return 0;
 }

@@ -39,4 +39,6 @@ int board_generate(Board *board, Move *movelist);
 void board_make(Board *board, Move move);
 void board_unmake(Board *board, Move move);
 
+int board_isdraw(const Board *board, int legalmoves);
+
 #endif  /* BOARD_H */
