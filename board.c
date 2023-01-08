@@ -20,6 +20,8 @@
 #define ROOK_SWITCH_OO(b)   (160ull << (56 * b->side))
 #define ROOK_SWITCH_OOO(b)  (9ull << (56 * b->side))
 
+#define ENPOFF(b)   (b->eptarget + (b->side == WHITE ? -8 : 8))
+
 #define FROM(x)     (x & 63)
 #define TO(x)       ((x >> 6) & 63)
 #define ATTACKER(x) ((x >> 12) & 7)
@@ -413,7 +415,7 @@ void board_printmove(Move move)
     printf("%c%c", 'a' + (from % 8), '1' + (from / 8));
     printf("%c%c", 'a' + (to % 8), '1' + (to / 8));
     if (flags == PROMOTION)
-        printf("%c", pchars[promo + 10]);
+        printf("%c", pchars[promo + 8]);
 }
 
 /**
@@ -678,11 +680,18 @@ U64 pawnquiets(const Board *board, const int i)
  */
 U64 pawncaps(const Board *board, const int i)
 {
-    U64 targets;
+    U64 enemies, checkmask, targets;
+
+    enemies = board->colorbb[board->side ^ 1];
+    checkmask = board->checkmask;
+    if (board->eptarget)
+        enemies |= tables.bit[board->eptarget];
+    if (board->checkmask & tables.bit[ENPOFF(board)])
+        checkmask |= tables.bit[board->eptarget];
 
     targets = tables.pawn_caps[board->side][i];
-    targets &= (board->colorbb[board->side ^ 1] | tables.bit[board->eptarget]);
-    targets &= board->checkmask;
+    targets &= enemies;
+    targets &= checkmask;
     return targets;
 }
 
@@ -701,7 +710,7 @@ U64 pawntargets(const Board *board, const int i)
  */
 U64 pinnedpawn(const Board *board, const int i)
 {
-    if (board->pins[CROSS] & tables.bit[i])
+    if (tables.bit[i] & board->pins[CROSS])
         return pawnquiets(board, i) & board->pins[CROSS];
     else
         return pawncaps(board, i) & board->pins[DIAG];
@@ -750,6 +759,8 @@ U64 bishoptargets(const Board *board, const int i)
  */
 U64 pinnedbishop(const Board *board, const int i)
 {
+    if (tables.bit[i] & board->pins[CROSS])
+        return 0;
     return bishoptargets(board, i) & board->pins[DIAG];
 }
 
@@ -773,6 +784,8 @@ U64 rooktargets(const Board *board, const int i)
  */
 U64 pinnedrook(const Board *board, const int i)
 {
+    if (tables.bit[i] & board->pins[DIAG])
+        return 0;
     return rooktargets(board, i) & board->pins[CROSS];
 }
 
@@ -791,10 +804,7 @@ U64 queentargets(const Board *board, const int i)
  */
 U64 pinnedqueen(const Board *board, const int i)
 {
-    if (board->pins[CROSS] & tables.bit[i])
-        return pinnedrook(board, i);
-    else
-        return pinnedbishop(board, i);
+    return pinnedbishop(board, i) | pinnedrook(board, i);;
 }
 
 /**
@@ -812,10 +822,41 @@ U64 kingtargets(const Board *board, const int i)
 }
 
 /**
+ * eplegal
+ *  test if the king is in check after an enpassant capture is make
+ */
+int eplegal(Board *board, const Move move)
+{
+    int legal;
+
+    board_make(board, move);
+    board->side ^= 1;
+
+    const U64 allyking = board->piecebb[KING] & board->colorbb[board->side];
+    const U64 enemies = board->colorbb[board->side ^ 1];
+    const U64 pawns = board->piecebb[PAWN] & enemies;
+    const U64 bishops = board->piecebb[BISHOP] & enemies;
+    const U64 rooks = board->piecebb[ROOK] & enemies;
+    const U64 queens = board->piecebb[QUEEN] & enemies;
+
+    const int i = LSB(allyking);
+    legal = 1;
+    if ((pawncaps(board, i) & pawns) ||
+        (bishoptargets(board, i) & (bishops | queens)) ||
+        (rooktargets(board, i)) & (rooks | queens))
+        legal = 0;
+
+    board->side ^= 1;
+    board_unmake(board, move);
+
+    return legal;
+}
+
+/**
  * serialize
  *  add all moves for the specified pieces to the move list
  */
-void serialize(const Board *board, Move *movelist, int *count, const int piece,
+void serialize(Board *board, Move *movelist, int *count, const int piece,
                U64 bitboard, U64 (* const moves)(const Board *, const int))
 {
     int i, j, cap;
@@ -838,6 +879,8 @@ void serialize(const Board *board, Move *movelist, int *count, const int piece,
                     movelist[(*count)++] = move | PROMO_(BISHOP);
                 } else if (j == board->eptarget) {
                     move |= FLAGS_(ENPASSANT);
+                    if (!eplegal(board, move))
+                        continue;
                 }
             }
             movelist[(*count)++] = move;
@@ -849,7 +892,7 @@ void serialize(const Board *board, Move *movelist, int *count, const int piece,
  * movegen
  *  generate legal moves for the specified piece type
  */
-void movegen(const Board *board, Move *movelist, int *count, const int piece,
+void movegen(Board *board, Move *movelist, int *count, const int piece,
              U64 (* const moves)(const Board *, const int),
              U64 (* const pinnedmoves)(const Board *, const int))
 {
@@ -867,7 +910,7 @@ void movegen(const Board *board, Move *movelist, int *count, const int piece,
  * kinggen
  *  generate legal king moves
  */
-void kinggen(const Board *board, Move *movelist, int *count)
+void kinggen(Board *board, Move *movelist, int *count)
 {
     U64 king;
 
