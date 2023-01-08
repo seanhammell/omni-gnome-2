@@ -1183,6 +1183,16 @@ int board_isdraw(const Board *board, int legalmoves)
         (board->rule50 == 50) ||
         isrepitition(board))
         return 1;
+    return 0;
+}
 
+/**
+ * board_ischeckmate
+ *  check whether the current side is in checkmate
+ */
+int board_ischeckmate(const Board *board, int legalmoves)
+{
+    if (legalmoves == 0 && board->nchecks)
+        return 1;
     return 0;
 }
