@@ -13,6 +13,7 @@ struct sinfo {
     U64 tstart;
     U64 tstop;
 
+    int stop;
     int quit;
 };
 

@@ -1,5 +1,7 @@
 #include <stdio.h>
+#include <string.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #include "search.h"
 
@@ -22,7 +24,62 @@ void search_clearinfo(SearchInfo *sinfo)
 {
     sinfo->depth = 0;
     sinfo->nodes = 0;
+    sinfo->tset = 0;
+    sinfo->tstart = 0;
+    sinfo->tstop = 0;
+    sinfo->stop = 0;
     sinfo->quit = 0;
+}
+
+/**
+ * inputwaiting
+ *  peek at stdin and return if there is input waiting
+ */
+int inputwaiting()
+{
+    fd_set readfds;
+    struct timeval t;
+
+    FD_ZERO(&readfds);
+    FD_SET(STDIN_FILENO, &readfds);
+    t.tv_sec = 0;
+    t.tv_usec = 0;
+    select(16, &readfds, 0, 0, &t);
+    return FD_ISSET(STDIN_FILENO, &readfds);
+}
+
+/**
+ * readinput
+ *  if there is input waiting in stdin, stop searching and read it
+ */
+void readinput(SearchInfo *sinfo)
+{
+    int bytes;
+    char input[256], *endc;
+
+    bytes = -1;
+    if (inputwaiting()) {
+        sinfo->stop = 1;
+        while (bytes < 0)
+            bytes = read(STDIN_FILENO, input, 256);
+        endc = strchr(input, '\n');
+        if (endc)
+            *endc = 0;
+        if (strlen(input) > 0)
+            if (!strncmp(input, "quit", 4))
+                sinfo->quit = 1;
+    }
+}
+
+/**
+ * checkstop
+ *  check whether time is up or the engine has been told to stop
+ */
+void checkstop(SearchInfo *sinfo)
+{
+    if (sinfo->tset && search_gettimems() > sinfo->tstop)
+        sinfo->stop = 1;
+    readinput(sinfo);
 }
 
 /**
