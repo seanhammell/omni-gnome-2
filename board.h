@@ -39,7 +39,7 @@ int board_generate(Board *board, Move *movelist);
 void board_make(Board *board, Move move);
 void board_unmake(Board *board, Move move);
 
-int board_isdraw(const Board *board, int legalmoves);
-int board_ischeckmate(const Board *board, int legalmoves);
+int board_gameover(const Board *board, int legalmoves);
+int board_evaluate(const Board *board, int legalmoves);
 
 #endif  /* BOARD_H */

@@ -1172,32 +1172,33 @@ int isrepitition(const Board *board)
     for (i = board->plynb - board->rule50; i < board->plynb; ++i) {
         if (board->history[board->plynb] == board->history[i]) {
             ++count;
+            if (count == 3)
+                return 1;
         }
     }
 
-    return count == 3 ? 1 : 0;
+    return 0;
 }
 
 /**
- * board_isdraw
- *  return whether the current position is a draw
+ * board_gameover
+ *  return whether the game has reached a terminal state
  */
-int board_isdraw(const Board *board, int legalmoves)
+int board_gameover(const Board *board, const int legalmoves)
 {
-    if ((legalmoves == 0 && board->nchecks == 0) ||
-        (board->rule50 == 50) ||
-        isrepitition(board))
+    if (legalmoves == 0 || board->rule50 == 50 || isrepitition(board))
         return 1;
     return 0;
 }
 
 /**
- * board_ischeckmate
- *  return whether the current side is in checkmate
+ * board_evaluate
+ *  return the outcome of the game, assuming the game has reached a terminal
+ *  state
  */
-int board_ischeckmate(const Board *board, int legalmoves)
+int board_evaluate(const Board *board, const int legalmoves)
 {
     if (legalmoves == 0 && board->nchecks)
-        return 1;
+        return -1;
     return 0;
 }
