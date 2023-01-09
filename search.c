@@ -5,6 +5,21 @@
 
 #include "search.h"
 
+typedef struct node Node;
+
+struct node {
+    Move action;
+    Move child_actions[128];
+    int child_action_count;
+
+    int wins;
+    int visits;
+
+    Node *parent;
+    Node *children[128];
+    int child_count;
+};
+
 /**
  * gettimems
  *  get the current time in milliseconds
