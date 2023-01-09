@@ -211,6 +211,24 @@ Move selection(const Node *node)
 }
 
 /**
+ * expansion
+ *  create the node of the specified action, adding it to the tree
+ */
+void expansion(Node *parent, Board *board, const Move action)
+{
+    Node *node;
+
+    node = init_node();
+    node->action = action;
+    board_make(board, action);
+    node->child_action_count = board_generate(board, node->child_actions);
+    board_unmake(board, action);
+    node->parent = parent;
+    parent->children[parent->child_count] = node;
+    ++parent->child_count;
+}
+
+/**
  * search_mcts
  *  Monte-Carlo Tree Search
  */
@@ -219,5 +237,8 @@ void search_mcts(Board *board, SearchInfo *sinfo)
     Node *root;
 
     root = init_node();
-    free(root);
+    root->child_action_count = board_generate(board, root->child_actions);
+    while (root->child_count < root->child_action_count)
+        expansion(root, board, root->child_actions[root->child_count]);
+    free_node(root);
 }
