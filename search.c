@@ -1,9 +1,13 @@
+#include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
 
 #include "search.h"
+
+#define C   2
 
 typedef struct node Node;
 
@@ -132,4 +136,44 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
         board_unmake(board, movelist[i]);
     }
     return nodes;
+}
+
+/**
+ * uct
+ *  calculate the upper confidence bound for the given node
+ */
+float uct(const Node *node)
+{
+    float visits, win_ratio, exploration;
+
+    visits = node->visits + 0.00001f;
+    win_ratio = node->wins / visits;
+    exploration = C * sqrt(log(node->parent->visits) / visits);
+    return win_ratio + exploration;
+}
+
+/**
+ * selection
+ *  return the move for a leaf node that has not been added to the tree
+ */
+Move selection(const Node *node)
+{
+    int i;
+    float child_uct, best_uct;
+    Node *child, *best_child;
+
+    if (node->child_count < node->child_action_count) {
+        return node->child_actions[node->child_count];
+    }
+
+    best_uct = 0;
+    for (i = 0; i < node->child_count; ++i) {
+        child_uct = uct(node->children[i]);
+        if (child_uct > best_uct) {
+            best_uct = child_uct;
+            best_child = node->children[i];
+        }
+    }
+
+    return selection(best_child);
 }
