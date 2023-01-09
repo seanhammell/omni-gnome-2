@@ -142,18 +142,22 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
  * init_node
  *  create a new MCTS node and initialize the appropriate members
  */
-Node *init_node(void)
+Node *init_node(Node *parent, Move action)
 {
     int i;
     Node *node;
 
     node = malloc(sizeof(struct node));
-    node->action = 0;
+    node->action = action;
     node->child_action_count = 0;
     node->wins = 0;
     node->visits = 0;
-    node->parent = NULL;
+    node->parent = parent;
     node->child_count = 0;
+    if (parent != NULL) {
+        parent->children[parent->child_count] = node;
+        ++parent->child_count;
+    }
     return node;
 }
 
@@ -188,14 +192,17 @@ float uct(const Node *node)
  * selection
  *  return the move for a leaf node that has not been added to the tree
  */
-Move selection(const Node *node)
+Node *selection(Node *node)
 {
     int i;
     float child_uct, best_uct;
     Node *child, *best_child;
 
+    ++node->visits;
+
     if (node->child_count < node->child_action_count) {
-        return node->child_actions[node->child_count];
+        child = init_node(node, node->child_actions[node->child_count]);
+        return child;
     }
 
     best_uct = 0;
@@ -212,20 +219,13 @@ Move selection(const Node *node)
 
 /**
  * expansion
- *  create the node of the specified action, adding it to the tree
+ *  generate all child actions for the node
  */
-void expansion(Node *parent, Board *board, const Move action)
+void expansion(Node *node, Board *board)
 {
-    Node *node;
-
-    node = init_node();
-    node->action = action;
-    board_make(board, action);
+    board_make(board, node->action);
     node->child_action_count = board_generate(board, node->child_actions);
-    board_unmake(board, action);
-    node->parent = parent;
-    parent->children[parent->child_count] = node;
-    ++parent->child_count;
+    board_unmake(board, node->action);
 }
 
 /**
@@ -234,11 +234,14 @@ void expansion(Node *parent, Board *board, const Move action)
  */
 void search_mcts(Board *board, SearchInfo *sinfo)
 {
-    Node *root;
+    Node *root, *leaf_node;
 
-    root = init_node();
-    root->child_action_count = board_generate(board, root->child_actions);
-    while (root->child_count < root->child_action_count)
-        expansion(root, board, root->child_actions[root->child_count]);
+    root = init_node(NULL, 0);
+    expansion(root, board);
+    while (!sinfo->stop) {
+        leaf_node = selection(root);
+        expansion(leaf_node, board);
+        checkstop(sinfo);
+    }
     free_node(root);
 }
