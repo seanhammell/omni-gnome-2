@@ -13,15 +13,15 @@ typedef struct node Node;
 
 struct node {
     Move action;
-    Move child_actions[128];
     int child_action_count;
+    Move child_actions[128];
 
     int wins;
     int visits;
 
     Node *parent;
-    Node *children[128];
     int child_count;
+    Node *children[128];
 };
 
 /**
@@ -139,6 +139,27 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
 }
 
 /**
+ * init_node
+ *  create a new MCTS node and initialize the appropriate members
+ */
+Node *init_node(Node *parent)
+{
+    int i;
+    Node *node;
+
+    node = malloc(sizeof(struct node));
+    node->action = 0;
+    node->child_action_count = 0;
+    memset(node->child_actions, 0, 128);
+    node->wins = 0;
+    node->visits = 0;
+    node->parent = parent;
+    node->child_count = 0;
+    memset(node->children, NULL, 128);
+    return node;
+}
+
+/**
  * uct
  *  calculate the upper confidence bound for the given node
  */
@@ -176,4 +197,15 @@ Move selection(const Node *node)
     }
 
     return selection(best_child);
+}
+
+/**
+ * search_mcts
+ *  Monte-Carlo Tree Search
+ */
+void search_mcts(Board *board, SearchInfo *sinfo)
+{
+    Node *root;
+
+    root = init_node(NULL);
 }
