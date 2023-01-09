@@ -43,6 +43,7 @@ void search_clearinfo(SearchInfo *sinfo)
 {
     sinfo->depth = 0;
     sinfo->nodes = 0;
+    sinfo->games = 0;
     sinfo->tset = 0;
     sinfo->tstart = 0;
     sinfo->tstop = 0;
@@ -192,7 +193,7 @@ float uct(const Node *node)
  * selection
  *  return the move for a leaf node that has not been added to the tree
  */
-Node *selection(Node *node, Board *board)
+Node *selection(Node *node, Board *board, SearchInfo *sinfo)
 {
     int i;
     float child_uct, best_uct;
@@ -214,18 +215,21 @@ Node *selection(Node *node, Board *board)
         }
     }
     board_make(board, best_child->action);
+    ++sinfo->nodes;
 
-    return selection(best_child, board);
+    return selection(best_child, board, sinfo);
 }
 
 /**
  * expansion
  *  generate all child actions for the node
  */
-void expansion(Node *node, Board *board)
+void expansion(Node *node, Board *board, SearchInfo *sinfo)
 {
-    if (node->action)
+    if (node->action) {
         board_make(board, node->action);
+        ++sinfo->nodes;
+    }
     ++node->visits;
     node->child_action_count = board_generate(board, node->child_actions);
 }
@@ -239,11 +243,17 @@ int simulation(Board *board, SearchInfo *sinfo, const Move action)
     int result;
     Move random_action, movelist[128];
 
+    checkstop(sinfo);
+    if (sinfo->stop)
+        return 0;
+
     board_make(board, action);
+    ++sinfo->nodes;
     const int count = board_generate(board, movelist);
     if (board_gameover(board, count)) {
         result = board_evaluate(board, count);
         board_unmake(board, action);
+        ++sinfo->games;
         return result;
     }
 
@@ -276,16 +286,35 @@ void backpropagation(Node *node, Board *board, int result)
  */
 void search_mcts(Board *board, SearchInfo *sinfo)
 {
-    int result;
+    int i, result;
+    float child_uct, best_uct;
+    Move best_move;
     Node *root, *leaf_node;
 
     root = init_node(NULL, 0);
     root->child_action_count = board_generate(board, root->child_actions);
 
-    leaf_node = selection(root, board);
-    expansion(leaf_node, board);
-    result = -simulation(board, sinfo, leaf_node->action);
-    backpropagation(leaf_node, board, result);
+    while (!sinfo->stop) {
+        leaf_node = selection(root, board, sinfo);
+        expansion(leaf_node, board, sinfo);
+        result = -simulation(board, sinfo, leaf_node->action);
+        backpropagation(leaf_node, board, result);
+    }
+
+    best_uct = 0;
+    for (i = 0; i < root->child_count; ++i) {
+        child_uct = uct(root->children[i]);
+        if (child_uct > best_uct) {
+            best_uct = child_uct;
+            best_move = root->children[i]->action;
+        }
+    }
+
+    printf("info time %llu nodes %llu games %d\n",
+           search_gettimems() - sinfo->tstart, sinfo->nodes, sinfo->games);
+    printf("bestmove ");
+    board_printmove(best_move);
+    printf("\n");
 
     free_node(root);
 }

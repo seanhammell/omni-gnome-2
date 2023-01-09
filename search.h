@@ -8,6 +8,7 @@ typedef struct sinfo SearchInfo;
 struct sinfo {
     int depth;
     U64 nodes;
+    int games;
 
     int tset;
     U64 tstart;

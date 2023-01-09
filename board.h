@@ -17,8 +17,8 @@ struct board {
     int eptarget;
     int rule50;
     int plynb;
-    U16 undo[512];
-    U64 history[512];
+    U16 undo[1024];
+    U64 history[1024];
 
     U64 pins[2];
     U64 seen;

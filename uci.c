@@ -32,17 +32,46 @@ void parsepos(Board *board, char *line)
 void parsego(Board *board, SearchInfo *sinfo, char *line)
 {
     char *cp;
-    int depth = -1;
+    int wturn, time, inc, depth, movestogo, movetime;
 
     line += 3;
     cp = line;
+    
+    wturn = board->side == 0;
+    time = -1;
+    inc = 0;
+    depth = -1;
+    movestogo = 30;
+    movetime = -1;
 
+    if ((cp = strstr(line, "wtime")) && wturn)
+        time = atoi(cp + 6);
+    if ((cp = strstr(line, "btime")) && !wturn)
+        time = atoi(cp + 6);
+    if ((cp = strstr(line, "winc")) && wturn)
+        inc = atoi(cp + 5);
+    if ((cp = strstr(line, "binc")) && !wturn)
+        inc = atoi(cp + 5);
+    if ((cp = strstr(line, "movestogo")))
+        movestogo = atoi(cp + 10);
     if ((cp = strstr(line, "depth")) || (cp = strstr(line, "perft")))
-        depth =  atoi(cp + 6);
+        depth = atoi(cp + 6);
+    if ((cp = strstr(line, "movetime")))
+        movetime = atoi(cp + 9);
 
     sinfo->depth = depth;
     sinfo->tstart = search_gettimems();
 
+    if (movetime != -1) {
+        time = movetime;
+        movestogo = 1;
+    }
+    if (time != -1) {
+        sinfo->tset = 1;
+        time /= movestogo;
+        time -= 50;
+        sinfo->tstop = sinfo->tstart + time + inc;
+    }
     if (depth == -1)
         sinfo->depth = MAXDEPTH;
 
