@@ -23,4 +23,6 @@ void search_clearinfo(SearchInfo *sinfo);
 
 U64 search_perft(Board *board, SearchInfo *sinfo, int depth);
 
+void search_mcts(Board *board, SearchInfo *sinfo);
+
 #endif  /* SEARCH_H */

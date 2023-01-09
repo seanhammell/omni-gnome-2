@@ -142,7 +142,7 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
  * init_node
  *  create a new MCTS node and initialize the appropriate members
  */
-Node *init_node(Node *parent)
+Node *init_node(void)
 {
     int i;
     Node *node;
@@ -150,13 +150,24 @@ Node *init_node(Node *parent)
     node = malloc(sizeof(struct node));
     node->action = 0;
     node->child_action_count = 0;
-    memset(node->child_actions, 0, 128);
     node->wins = 0;
     node->visits = 0;
-    node->parent = parent;
+    node->parent = NULL;
     node->child_count = 0;
-    memset(node->children, NULL, 128);
     return node;
+}
+
+/**
+ * free_node
+ *  free a node and all of it's children
+ */
+void free_node(Node *node)
+{
+    int i;
+
+    for (i = 0; i < node->child_count; ++i)
+        free_node(node->children[i]);
+    free(node);
 }
 
 /**
@@ -207,5 +218,6 @@ void search_mcts(Board *board, SearchInfo *sinfo)
 {
     Node *root;
 
-    root = init_node(NULL);
+    root = init_node();
+    free(root);
 }
