@@ -192,7 +192,7 @@ float uct(const Node *node)
  * selection
  *  return the move for a leaf node that has not been added to the tree
  */
-Node *selection(Node *node)
+Node *selection(Node *node, Board *board)
 {
     int i;
     float child_uct, best_uct;
@@ -213,8 +213,9 @@ Node *selection(Node *node)
             best_child = node->children[i];
         }
     }
+    board_make(board, best_child->action);
 
-    return selection(best_child);
+    return selection(best_child, board);
 }
 
 /**
@@ -223,9 +224,30 @@ Node *selection(Node *node)
  */
 void expansion(Node *node, Board *board)
 {
-    board_make(board, node->action);
+    if (node->action)
+        board_make(board, node->action);
     node->child_action_count = board_generate(board, node->child_actions);
-    board_unmake(board, node->action);
+}
+
+/**
+ * simulation
+ *  play a game of random moves and return the result
+ */
+int simulation(Board *board, SearchInfo *sinfo, const Move action)
+{
+    int result;
+    Move random_action, movelist[128];
+
+    board_make(board, action);
+    const int count = board_generate(board, movelist);
+    if (board_gameover(board, count)) {
+        result = board_evaluate(board, count);
+    } else {
+        random_action = movelist[rand() % count];
+        result = -simulation(board, sinfo, random_action);
+    }
+    board_unmake(board, action);
+    return result;
 }
 
 /**
@@ -234,14 +256,15 @@ void expansion(Node *node, Board *board)
  */
 void search_mcts(Board *board, SearchInfo *sinfo)
 {
+    int result;
     Node *root, *leaf_node;
 
     root = init_node(NULL, 0);
-    expansion(root, board);
-    while (!sinfo->stop) {
-        leaf_node = selection(root);
-        expansion(leaf_node, board);
-        checkstop(sinfo);
-    }
+    root->child_action_count = board_generate(board, root->child_actions);
+
+    leaf_node = selection(root, board);
+    expansion(leaf_node, board);
+    result = simulation(board, sinfo, leaf_node->action);
+
     free_node(root);
 }

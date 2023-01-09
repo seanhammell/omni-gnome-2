@@ -1134,7 +1134,7 @@ void board_make(Board *board, Move move)
     undo |= CASTLE_(board->castling);
     board->undo[board->plynb] = undo;
     ++board->plynb;
-    assert(board->plynb < 256);
+    assert(board->plynb < 512);
     ++board->rule50;
     board->eptarget = 0;
 
