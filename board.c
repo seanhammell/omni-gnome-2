@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "board.h"
 
@@ -1198,7 +1199,11 @@ int board_gameover(const Board *board, const int legalmoves)
  */
 int board_evaluate(const Board *board, const int legalmoves)
 {
-    if (legalmoves == 0 && board->nchecks)
-        return -1;
-    return 0;
+    if (legalmoves == 0 && board->nchecks) {
+        if (board->side == board->root_side)
+            return 0;
+        else
+            return 1;
+    }
+    return rand() % 2;
 }

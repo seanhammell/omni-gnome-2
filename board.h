@@ -24,6 +24,8 @@ struct board {
     U64 seen;
     U64 checkmask;
     int nchecks;
+
+    int root_side;
 };
 
 void board_inittables();

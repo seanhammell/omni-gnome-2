@@ -226,19 +226,17 @@ Node *selection(Node *node, Board *board, SearchInfo *sinfo)
  */
 void expansion(Node *node, Board *board, SearchInfo *sinfo)
 {
-    if (node->action) {
-        board_make(board, node->action);
-        ++sinfo->nodes;
-    }
-    ++node->visits;
+    board_make(board, node->action);
     node->child_action_count = board_generate(board, node->child_actions);
+    ++node->visits;
+    ++sinfo->nodes;
 }
 
 /**
  * simulation
  *  play a game of random moves and return the result
  */
-int simulation(Board *board, SearchInfo *sinfo, const Move action)
+int simulation(Board *board, SearchInfo *sinfo)
 {
     int result;
     Move random_action, movelist[128];
@@ -247,19 +245,18 @@ int simulation(Board *board, SearchInfo *sinfo, const Move action)
     if (sinfo->stop)
         return 0;
 
-    board_make(board, action);
     ++sinfo->nodes;
     const int count = board_generate(board, movelist);
     if (board_gameover(board, count)) {
         result = board_evaluate(board, count);
-        board_unmake(board, action);
         ++sinfo->games;
         return result;
     }
 
     random_action = movelist[rand() % count];
-    result = -simulation(board, sinfo, random_action);
-    board_unmake(board, action);
+    board_make(board, random_action);
+    result = simulation(board, sinfo);
+    board_unmake(board, random_action);
     return result;
 }
 
@@ -270,14 +267,11 @@ int simulation(Board *board, SearchInfo *sinfo, const Move action)
 void backpropagation(Node *node, Board *board, int result)
 {
     while (node->parent != NULL) {
-        if (result == 0)
-            node->wins += rand() % 2;
-        if (result == 1)
-            ++node->wins;
-        result = -result;
+        node->wins += result;
         board_unmake(board, node->action);
         node = node->parent;
     }
+    node->wins += result;
 }
 
 /**
@@ -293,11 +287,12 @@ void search_mcts(Board *board, SearchInfo *sinfo)
 
     root = init_node(NULL, 0);
     root->child_action_count = board_generate(board, root->child_actions);
+    board->root_side = board->side;
 
     while (!sinfo->stop) {
         leaf_node = selection(root, board, sinfo);
         expansion(leaf_node, board, sinfo);
-        result = -simulation(board, sinfo, leaf_node->action);
+        result = simulation(board, sinfo);
         backpropagation(leaf_node, board, result);
     }
 
