@@ -49,8 +49,6 @@ int board_generate(Board *board, Move *movelist);
 void board_make(Board *board, Move move);
 void board_unmake(Board *board, Move move);
 
-int board_evaluate(Board *board);
-
 int board_gameover(const Board *board, const int legal_moves);
 int board_terminal(const Board *board, const int legal_moves);
 

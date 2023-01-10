@@ -87,61 +87,61 @@ const int *piece_square_tables[] = {
  * material
  *  evaluate the material difference between sides
  */
-int material(Board *board, U64 *allies, U64 *enemies)
+int material(Board *board)
 {
     int i, score;
+    U64 allies, enemies;
 
     const int values[] = {0, 100, 320, 330, 500, 900, 20000};
 
+    allies = board->colorbb[board->side];
+    enemies = board->colorbb[board->side ^ 1];
+
     score = 0;
     for (i = PAWN; i <= KING; ++i) {
-        score += values[i] * (POPCNT(allies[i]) - POPCNT(enemies[i]));
+        score += values[i] * POPCNT(board->piecebb[i] & allies);
+        score -= values[i] * POPCNT(board->piecebb[i] & enemies);
     }
     return score;
 }
 
 /**
  * pst_bonus
- *  calculate bonuses for which square a piece is standing on
+ *  calculate bonuses based on which square a piece is standing on
  */
-int pst_bonus(Board *board, U64 allies, U64 enemies, int piece_type)
+int pst_bonus(Board *board)
 {
-    int i, score;
-    int ally_flip, enemy_flip;
+    int i, j, score;
+    int ally_sq_flip, enemy_sq_flip;
+    U64 allies, enemies, piece, ally_king, enemy_king;
 
-    ally_flip = 56 * board->side;
-    enemy_flip = 56 * (board-> side ^ 1);
+    allies = board->colorbb[board->side];
+    enemies = board->colorbb[board->side ^ 1];
 
-    while (allies) {
-        i = board_pullbit(&allies);
-        score += piece_square_tables[piece_type][i ^ ally_flip];
-    }
-    while (enemies) {
-        i = board_pullbit(&enemies);
-        score -= piece_square_tables[piece_type][i ^ enemy_flip];
-    }
-    return score;
-}
-
-/**
- * king_pst_bonus
- *  calculate the bonus for a king depending on game phase
- */
-int king_pst_bonus(Board *board, U64 ally_king, U64 enemy_king)
-{
-    int i, score;
-    int ally_flip, enemy_flip;
-
-    ally_flip = 56 * board->side;
-    enemy_flip = 56 * (board-> side ^ 1);
+    ally_sq_flip = 56 * board->side;
+    enemy_sq_flip = 56 * (board->side ^ 1);
 
     score = 0;
+    for (i = PAWN; i < KING; ++i) {
+        piece = board->piecebb[i] & allies;
+        while (piece) {
+            j = board_pullbit(&piece) ^ ally_sq_flip;
+            score += piece_square_tables[i][j];
+        }
+        piece = board->piecebb[i] & enemies;
+        while (piece) {
+            j = board_pullbit(&piece) ^ enemy_sq_flip;
+            score -= piece_square_tables[i][j];
+        }
+    }
+    ally_king = board->piecebb[KING] & allies;
+    enemy_king = board->piecebb[KING] & enemies;
     if (board->piecebb[QUEEN]) {
-        score += king_middle_game_pst[LSB(ally_king) ^ ally_flip];
-        score += king_middle_game_pst[LSB(enemy_king) ^ enemy_flip];
+        score += king_middle_game_pst[LSB(ally_king) ^ ally_sq_flip];
+        score -= king_middle_game_pst[LSB(enemy_king) ^ enemy_sq_flip];
     } else {
-        score += king_end_game_pst[LSB(ally_king) ^ ally_flip];
-        score += king_end_game_pst[LSB(enemy_king) ^ enemy_flip];
+        score += king_end_game_pst[LSB(ally_king) ^ ally_sq_flip];
+        score -= king_end_game_pst[LSB(enemy_king) ^ enemy_sq_flip];
     }
     return score;
 }
@@ -152,30 +152,11 @@ int king_pst_bonus(Board *board, U64 ally_king, U64 enemy_king)
  */
 int eval_heuristic(Board *board)
 {
-    int i, score;
-    U64 pawns, knights, bishops, rooks, queens, kings;
-
-    pawns = board->piecebb[PAWN] & board->colorbb[board->side];
-    knights = board->piecebb[KNIGHT] & board->colorbb[board->side];
-    bishops = board->piecebb[BISHOP] & board->colorbb[board->side];
-    rooks = board->piecebb[ROOK] & board->colorbb[board->side];
-    queens = board->piecebb[QUEEN] & board->colorbb[board->side];
-
-    U64 allies[7] = {0, pawns, knights, bishops, rooks, queens, kings};
-
-    pawns = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
-    knights = board->piecebb[KNIGHT] & board->colorbb[board->side ^ 1];
-    bishops = board->piecebb[BISHOP] & board->colorbb[board->side ^ 1];
-    rooks = board->piecebb[ROOK] & board->colorbb[board->side ^ 1];
-    queens = board->piecebb[QUEEN] & board->colorbb[board->side ^ 1];
-
-    U64 enemies[7] = {0, pawns, knights, bishops, rooks, queens, kings};
+    int score;
 
     score = 0;
-    score += material(board, allies, enemies);
-    for (i = PAWN; i < KING; ++i)
-        score += pst_bonus(board, allies[i], enemies[i], i);
-    score += king_pst_bonus(board, allies[KING], enemies[KING]);
+    score += material(board);
+    score += pst_bonus(board);
     return score;
 }
 
