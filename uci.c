@@ -7,7 +7,7 @@
 #define MAXBUFF 2500
 #define MAXDEPTH 8
 #define SFEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-#define ID "id name Omni-Gnome 2.0\nid author Sean Hammell\nuciok\n"
+#define ID "id name Omni-Gnome 2\nid author Sean Hammell\nuciok\n"
 
 /**
  * parsepos
@@ -96,7 +96,7 @@ void parsego(Board *board, SearchInfo *sinfo, char *line)
  */
 void uci_loop(void)
 {
-    printf("Omni-Gnome 2.0\n");
+    printf("Omni-Gnome 2\n");
     char line[MAXBUFF];
     Board board;
     SearchInfo sinfo;

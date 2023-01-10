@@ -139,12 +139,13 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
 }
 
 /**
- * negamax
- *  exhaustively search the game tree to find the best possible move
+ * alphabeta
+ *  search the game tree, pruning branches guaranteed to produce a worse score
+ *  than already promised by a previous branch
  */
-int negamax(Board *board, SearchInfo *sinfo, int depth)
+int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
 {
-    int i, score, alpha;
+    int i, score;
     Move movelist[128];
 
     checkstop(sinfo);
@@ -159,10 +160,13 @@ int negamax(Board *board, SearchInfo *sinfo, int depth)
     if (depth == 0)
         return board_evaluate(board);
 
-    alpha = -6000;
     for (i = 0; i < count; ++i) {
         board_make(board, movelist[i]);
-        score = -negamax(board, sinfo, depth - 1);
+        score = -alphabeta(board, sinfo, depth - 1, -beta, -alpha);
+        if (score >= beta) {
+            board_unmake(board, movelist[i]);
+            return beta;
+        }
         if (score > alpha)
             alpha = score;
         board_unmake(board, movelist[i]);
@@ -176,16 +180,17 @@ int negamax(Board *board, SearchInfo *sinfo, int depth)
  */
 void search_driver(Board *board, SearchInfo *sinfo)
 {
-    int i, depth, score, alpha;
+    int i, depth, score, alpha, beta;
     Move provisional, best_move, movelist[128];
 
     for (depth = 1; depth <= sinfo->depth; ++depth) {
         const int count = board_generate(board, movelist);
 
         alpha = -6000;
+        beta = 6000;
         for (i = 0; i < count; ++i) {
             board_make(board, movelist[i]);
-            score = -negamax(board, sinfo, depth - 1);
+            score = -alphabeta(board, sinfo, depth - 1, -beta, -alpha);
             if (score > alpha) {
                 alpha = score;
                 provisional = movelist[i];
