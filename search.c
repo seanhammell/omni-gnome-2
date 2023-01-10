@@ -137,3 +137,73 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
     }
     return nodes;
 }
+
+/**
+ * negamax
+ *  exhaustively search the game tree to find the best possible move
+ */
+int negamax(Board *board, SearchInfo *sinfo, int depth)
+{
+    int i, score, alpha;
+    Move movelist[128];
+
+    checkstop(sinfo);
+    if (sinfo->stop)
+        return 0;
+
+    ++sinfo->nodes;
+    const int count = board_generate(board, movelist);
+    if (board_gameover(board, count))
+        return board_terminal(board, count);
+
+    if (depth == 0)
+        return board_evaluate(board);
+
+    alpha = -6000;
+    for (i = 0; i < count; ++i) {
+        board_make(board, movelist[i]);
+        score = -negamax(board, sinfo, depth - 1);
+        if (score > alpha)
+            alpha = score;
+        board_unmake(board, movelist[i]);
+    }
+    return alpha;
+}
+
+/**
+ * search_driver
+ *  select the best move as returned by negamax
+ */
+void search_driver(Board *board, SearchInfo *sinfo)
+{
+    int i, depth, score, alpha;
+    Move provisional, best_move, movelist[128];
+
+    for (depth = 1; depth <= sinfo->depth; ++depth) {
+        const int count = board_generate(board, movelist);
+
+        alpha = -6000;
+        for (i = 0; i < count; ++i) {
+            board_make(board, movelist[i]);
+            score = -negamax(board, sinfo, depth - 1);
+            if (score > alpha) {
+                alpha = score;
+                provisional = movelist[i];
+            }
+            board_unmake(board, movelist[i]);
+        }
+
+        checkstop(sinfo);
+        if (sinfo->stop)
+            break;
+
+        best_move = provisional;
+        printf("info pv ");
+        board_printmove(best_move);
+        printf(" depth %d time %llu nodes %llu\n",
+               depth, search_gettimems() - sinfo->tstart, sinfo->nodes);
+    }
+    printf("bestmove ");
+    board_printmove(best_move);
+    printf("\n");
+}

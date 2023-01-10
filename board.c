@@ -1162,6 +1162,43 @@ void board_unmake(Board *board, Move move)
 }
 
 /**
+ * board_evalute
+ *  evaluate the current position based on material difference
+ */
+int board_evaluate(Board *board)
+{
+    int score;
+    U64 allies, enemies;
+    U64 ally_pawns, ally_knights, ally_bishops, ally_rooks, ally_queens;
+    U64 enemy_pawns, enemy_knights, enemy_bishops, enemy_rooks, enemy_queens;
+
+    const int values[] = {0, 1, 3, 3, 5, 9};
+
+    allies = board->colorbb[board->side];
+    enemies = board->colorbb[board->side ^ 1];
+
+    ally_pawns = board->piecebb[PAWN] & allies;
+    ally_knights = board->piecebb[KNIGHT] & allies;
+    ally_bishops = board->piecebb[BISHOP] & allies;
+    ally_rooks = board->piecebb[ROOK] & allies;
+    ally_queens = board->piecebb[QUEEN] & allies;
+
+    enemy_pawns = board->piecebb[PAWN] & enemies;
+    enemy_knights = board->piecebb[KNIGHT] & enemies;
+    enemy_bishops = board->piecebb[BISHOP] & enemies;
+    enemy_rooks = board->piecebb[ROOK] & enemies;
+    enemy_queens = board->piecebb[QUEEN] & enemies;
+
+    score = 0;
+    score += values[PAWN] * (POPCNT(ally_pawns) - POPCNT(enemy_pawns));
+    score += values[KNIGHT] * (POPCNT(ally_knights) - POPCNT(enemy_knights));
+    score += values[BISHOP] * (POPCNT(ally_bishops) - POPCNT(enemy_bishops));
+    score += values[ROOK] * (POPCNT(ally_rooks) - POPCNT(enemy_rooks));
+    score += values[QUEEN] * (POPCNT(ally_queens) - POPCNT(enemy_queens));
+    return score;
+}
+
+/**
  * isrepitition
  *  return whether the current position is a threefold repitition
  */
@@ -1178,5 +1215,29 @@ int isrepitition(const Board *board)
         }
     }
 
+    return 0;
+}
+
+/**
+ * board_gameover
+ *  return whether the game has reached a terminal state
+ */
+int board_gameover(const Board *board, const int legal_moves)
+{
+    if (legal_moves == 0 || board->rule50 == 50 || isrepitition(board))
+        return 1;
+    return 0;
+}
+
+/**
+ * board_terminal
+ *  return the outcome of the game, assuming the game has reached a terminal
+ *  state
+ */
+int board_terminal(const Board *board, const int legal_moves)
+{
+    if (legal_moves == 0 && board->nchecks) {
+        return -2000;
+    }
     return 0;
 }
