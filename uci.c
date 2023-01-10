@@ -86,8 +86,6 @@ void parsego(Board *board, SearchInfo *sinfo, char *line)
                sinfo->nodes / ((sinfo->tstop - sinfo->tstart) * 1000.0f));
         return;
     }
-
-    search_mcts(board, sinfo);
 }
 
 /**

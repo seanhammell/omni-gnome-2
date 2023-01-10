@@ -24,8 +24,6 @@ struct board {
     U64 seen;
     U64 checkmask;
     int nchecks;
-
-    int root_side;
 };
 
 void board_inittables();
@@ -40,8 +38,5 @@ int board_generate(Board *board, Move *movelist);
 
 void board_make(Board *board, Move move);
 void board_unmake(Board *board, Move move);
-
-int board_gameover(const Board *board, int legalmoves);
-int board_evaluate(const Board *board, int legalmoves);
 
 #endif  /* BOARD_H */

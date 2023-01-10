@@ -1180,30 +1180,3 @@ int isrepitition(const Board *board)
 
     return 0;
 }
-
-/**
- * board_gameover
- *  return whether the game has reached a terminal state
- */
-int board_gameover(const Board *board, const int legalmoves)
-{
-    if (legalmoves == 0 || board->rule50 == 50 || isrepitition(board))
-        return 1;
-    return 0;
-}
-
-/**
- * board_evaluate
- *  return the outcome of the game, assuming the game has reached a terminal
- *  state
- */
-int board_evaluate(const Board *board, const int legalmoves)
-{
-    if (legalmoves == 0 && board->nchecks) {
-        if (board->side == board->root_side)
-            return 0;
-        else
-            return 1;
-    }
-    return rand() % 2;
-}
