@@ -6,23 +6,7 @@
 #include <unistd.h>
 
 #include "search.h"
-
-#define C   2
-
-typedef struct node Node;
-
-struct node {
-    Move action;
-    int child_action_count;
-    Move child_actions[128];
-
-    float wins;
-    int visits;
-
-    Node *parent;
-    int child_count;
-    Node *children[128];
-};
+#include "eval.h"
 
 /**
  * gettimems
@@ -158,7 +142,7 @@ int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
         return board_terminal(board, count);
 
     if (depth == 0)
-        return board_evaluate(board);
+        return eval_heuristic(board);
 
     for (i = 0; i < count; ++i) {
         board_make(board, movelist[i]);
@@ -186,8 +170,8 @@ void search_driver(Board *board, SearchInfo *sinfo)
     for (depth = 1; depth <= sinfo->depth; ++depth) {
         const int count = board_generate(board, movelist);
 
-        alpha = -6000;
-        beta = 6000;
+        alpha = -INF;
+        beta = INF;
         for (i = 0; i < count; ++i) {
             board_make(board, movelist[i]);
             score = -alphabeta(board, sinfo, depth - 1, -beta, -alpha);

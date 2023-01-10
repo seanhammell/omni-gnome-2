@@ -3,11 +3,20 @@
 
 #include <stdint.h>
 
+#define CHECKMATE   -200000
+#define INF         600000
+
+#define LSB(x)      __builtin_ctzll(x)
+#define POPCNT(x)   __builtin_popcountll(x)
+
 typedef uint16_t U16;
 typedef uint64_t U64;
 
 typedef struct board Board;
 typedef uint32_t Move;
+
+enum colors { WHITE, BLACK, BOTH };
+enum pieces { EMPTY, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING };
 
 struct board {
     U64 colorbb[3];
