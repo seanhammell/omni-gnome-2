@@ -43,6 +43,7 @@ void board_parsemoves(Board *board, char *line);
 void board_display(const Board *board);
 void board_printmove(Move move);
 
+int board_pullbit(U64 *bb);
 int board_generate(Board *board, Move *movelist);
 
 void board_make(Board *board, Move move);

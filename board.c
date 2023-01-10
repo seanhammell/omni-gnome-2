@@ -514,10 +514,10 @@ void board_printmove(Move move)
 }
 
 /**
- * pullbit
+ * board_pullbit
  *  pop the lsb from the board and return it's index
  */
-int pullbit(U64 *bb)
+int board_pullbit(U64 *bb)
 {
     const int i = LSB(*bb);
     *bb &= *bb - 1;
@@ -607,7 +607,7 @@ void pins(Board *board, U64 (*slide)(const Board *, int), const int slider)
     i = LSB(king);
     const U64 kingray = slide(board, i);
     while(sliders) {
-        i = pullbit(&sliders);
+        i = board_pullbit(&sliders);
         enemyray = slide(board, i);
         pin = kingray & enemyray & board->colorbb[board->side];
         if (pin)
@@ -630,7 +630,7 @@ void seenray(Board *board, U64 (*slide)(const Board *, int), const int slider)
 
     board->colorbb[BOTH] ^= king;
     while(sliders) {
-        i = pullbit(&sliders);
+        i = board_pullbit(&sliders);
         board->seen |= slide(board, i);
     }
     board->colorbb[BOTH] ^= king;
@@ -654,7 +654,7 @@ void checkray(Board *board, U64 (*slide)(const Board *, int), const int slider)
     const U64 kingray = slide(board, i);
     sliders &= kingray;
     while(sliders) {
-        i = pullbit(&sliders);
+        i = board_pullbit(&sliders);
         enemyray = slide(board, i);
         board->checkmask |= (kingray & enemyray) | tables.bit[i];
         ++board->nchecks;
@@ -678,7 +678,7 @@ void pawndanger(Board *board)
     board->checkmask |= checks;
     board->nchecks += POPCNT(checks);
     while (pawns) {
-        i = pullbit(&pawns);
+        i = board_pullbit(&pawns);
         board->seen |= tables.pawn_caps[board->side ^ 1][i];
     }
 }
@@ -700,7 +700,7 @@ void knightdanger(Board *board)
     board->checkmask |= checks;
     board->nchecks += POPCNT(checks);
     while (knights) {
-        i = pullbit(&knights);
+        i = board_pullbit(&knights);
         board->seen |= tables.knight_moves[i];
     }
 }
@@ -958,10 +958,10 @@ void serialize(Board *board, Move *movelist, int *count, const int piece,
     U64 targets;
 
     while (bitboard) {
-        i = pullbit(&bitboard);
+        i = board_pullbit(&bitboard);
         targets = moves(board, i);
         while (targets) {
-            j = pullbit(&targets);
+            j = board_pullbit(&targets);
             for (cap = EMPTY; cap < KING; ++cap)
                 if (board->piecebb[cap] & tables.bit[j])
                     break;

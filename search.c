@@ -147,13 +147,11 @@ int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
     for (i = 0; i < count; ++i) {
         board_make(board, movelist[i]);
         score = -alphabeta(board, sinfo, depth - 1, -beta, -alpha);
-        if (score >= beta) {
-            board_unmake(board, movelist[i]);
+        board_unmake(board, movelist[i]);
+        if (score >= beta)
             return beta;
-        }
         if (score > alpha)
             alpha = score;
-        board_unmake(board, movelist[i]);
     }
     return alpha;
 }
@@ -167,19 +165,18 @@ void search_driver(Board *board, SearchInfo *sinfo)
     int i, depth, score, alpha, beta;
     Move provisional, best_move, movelist[128];
 
+    const int count = board_generate(board, movelist);
     for (depth = 1; depth <= sinfo->depth; ++depth) {
-        const int count = board_generate(board, movelist);
-
         alpha = -INF;
         beta = INF;
         for (i = 0; i < count; ++i) {
             board_make(board, movelist[i]);
             score = -alphabeta(board, sinfo, depth - 1, -beta, -alpha);
+            board_unmake(board, movelist[i]);
             if (score > alpha) {
                 alpha = score;
                 provisional = movelist[i];
             }
-            board_unmake(board, movelist[i]);
         }
 
         checkstop(sinfo);
