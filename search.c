@@ -1,12 +1,12 @@
-#include <math.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
 
 #include "search.h"
 #include "eval.h"
+
+#define WINDOW  25
 
 /**
  * gettimems
@@ -198,22 +198,34 @@ int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
  */
 void search_driver(Board *board, SearchInfo *sinfo)
 {
-    int i, depth, score, alpha, beta;
+    int i, depth, score, best;
+    int alpha, beta;
     Move provisional, best_move, movelist[128];
+
+    alpha = -INF;
+    beta = INF;
 
     const int count = board_generate(board, movelist);
     for (depth = 1; depth <= sinfo->depth; ++depth) {
-        alpha = -INF;
-        beta = INF;
-        for (i = 0; i < count; ++i) {
-            board_make(board, movelist[i]);
-            score = -alphabeta(board, sinfo, depth - 1, -beta, -alpha);
-            board_unmake(board, movelist[i]);
-            if (score > alpha) {
-                alpha = score;
-                provisional = movelist[i];
+        for (;;) {
+            best = -INF;
+            for (i = 0; i < count; ++i) {
+                board_make(board, movelist[i]);
+                score = -alphabeta(board, sinfo, depth - 1, -beta, -alpha);
+                board_unmake(board, movelist[i]);
+                if (score > best) {
+                    best = score;
+                    provisional = movelist[i];
+                }
             }
+            if (best > alpha && best < beta)
+                break;
+            alpha = -INF;
+            beta = INF;
         }
+
+        alpha = best - WINDOW;
+        beta = best + WINDOW;
 
         checkstop(sinfo);
         if (sinfo->stop)
