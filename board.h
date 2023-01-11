@@ -34,6 +34,8 @@ struct board {
     U64 seen;
     U64 checkmask;
     int nchecks;
+
+    U64 capmask;
 };
 
 void board_inittables();
@@ -46,6 +48,7 @@ void board_printmove(Move move);
 
 int board_pullbit(U64 *bb);
 int board_generate(Board *board, Move *movelist);
+int board_captures(Board *board, Move *movelist);
 
 void board_make(Board *board, Move move);
 void board_unmake(Board *board, Move move);

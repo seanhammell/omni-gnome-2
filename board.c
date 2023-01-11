@@ -389,6 +389,7 @@ void board_parsefen(Board *board, char *fen)
     board->quiet = 1;
     board->plynb = 0;
     board->history[board->plynb] = hashposition(board);
+    board->capmask = ~0ull;
 }
 
 /**
@@ -808,10 +809,11 @@ U64 pawntargets(const Board *board, const int i)
  */
 U64 pinnedpawn(const Board *board, const int i)
 {
-    if (tables.bit[i] & board->pins[CROSS])
-        return pawnquiets(board, i) & board->pins[CROSS];
-    else
+    if (tables.bit[i] & board->pins[DIAG])
         return pawncaps(board, i) & board->pins[DIAG];
+    else if (board->capmask == ~0ull)
+        return pawnquiets(board, i) & board->pins[CROSS];
+    return 0ull;
 }
 
 /**
@@ -962,7 +964,7 @@ void serialize(Board *board, Move *movelist, int *count, const int piece,
 
     while (bitboard) {
         i = board_pullbit(&bitboard);
-        targets = moves(board, i);
+        targets = moves(board, i) & board->capmask;
         while (targets) {
             j = board_pullbit(&targets);
             for (cap = EMPTY; cap < KING; ++cap)
@@ -1064,6 +1066,32 @@ int board_generate(Board *board, Move *movelist)
             castlegen(board, movelist, &count);
     }
     kinggen(board, movelist, &count);
+
+    return count;
+}
+
+/**
+ * board_captures
+ *  generate all legal captures in the current position and return the count
+ */
+int board_captures(Board *board, Move *movelist)
+{
+    int count;
+
+    count = 0;
+
+    setdanger(board);
+
+    board->capmask = board->colorbb[board->side ^ 1];
+    if (board->nchecks < 2) {
+        movegen(board, movelist, &count, PAWN, pawncaps, pinnedpawn);
+        movegen(board, movelist, &count, KNIGHT, knighttargets, pinnedknight);
+        movegen(board, movelist, &count, BISHOP, bishoptargets, pinnedbishop);
+        movegen(board, movelist, &count, ROOK, rooktargets, pinnedrook);
+        movegen(board, movelist, &count, QUEEN, queentargets, pinnedqueen);
+    }
+    kinggen(board, movelist, &count);
+    board->capmask = ~0ull;
 
     return count;
 }

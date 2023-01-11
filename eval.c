@@ -159,4 +159,3 @@ int eval_heuristic(Board *board)
     score += pst_bonus(board);
     return score;
 }
-
