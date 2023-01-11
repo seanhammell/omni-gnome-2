@@ -9,7 +9,7 @@
 #define LSB(x)      __builtin_ctzll(x)
 #define POPCNT(x)   __builtin_popcountll(x)
 
-typedef uint16_t U16;
+typedef uint32_t U32;
 typedef uint64_t U64;
 
 typedef struct board Board;
@@ -25,8 +25,9 @@ struct board {
     int castling;
     int eptarget;
     int rule50;
+    int quiet;
     int plynb;
-    U16 undo[1024];
+    U32 undo[1024];
     U64 history[1024];
 
     U64 pins[2];

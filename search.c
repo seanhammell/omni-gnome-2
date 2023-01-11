@@ -123,13 +123,12 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
 }
 
 /**
- * alphabeta
- *  search the game tree, pruning branches guaranteed to produce a worse score
- *  than already promised by a previous branch
+ * quiesce
+ *  extend the search until a quiet position is found
  */
-int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
+int quiesce(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
 {
-    int i, score;
+    int i, score, standpat;
     Move movelist[128];
 
     checkstop(sinfo);
@@ -141,8 +140,42 @@ int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
     if (board_gameover(board, count))
         return board_terminal(board, count);
 
-    if (depth == 0)
+    if (board->quiet)
         return eval_heuristic(board);
+
+    for (i = 0; i < count; ++i) {
+        board_make(board, movelist[i]);
+        score = -quiesce(board, sinfo, depth - 1, -beta, -alpha);
+        board_unmake(board, movelist[i]);
+        if (score >= beta)
+            return beta;
+        if (score > alpha)
+            alpha = score;
+    }
+    return alpha;
+}
+
+/**
+ * alphabeta
+ *  search the game tree, pruning branches guaranteed to produce a worse score
+ *  than already promised by a previous branch
+ */
+int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
+{
+    int i, score;
+    Move movelist[128];
+
+    if (depth == 0)
+        return quiesce(board, sinfo, 4, alpha, beta);
+
+    checkstop(sinfo);
+    if (sinfo->stop)
+        return 0;
+
+    ++sinfo->nodes;
+    const int count = board_generate(board, movelist);
+    if (board_gameover(board, count))
+        return board_terminal(board, count);
 
     for (i = 0; i < count; ++i) {
         board_make(board, movelist[i]);
