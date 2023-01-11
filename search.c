@@ -178,7 +178,7 @@ int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
     ++sinfo->nodes;
     const int count = board_generate(board, movelist);
     if (board_gameover(board, count))
-        return board_terminal(board, count);
+        return board_terminal(board, count, depth);
 
     for (i = 0; i < count; ++i) {
         board_make(board, movelist[i]);

@@ -47,8 +47,6 @@
 
 #define FLAG_HASH(s, e, c)   (s | ((e % 15) << 4) | (c << 8))
 
-typedef struct tables Tables;
-
 enum castling {
     NO_CASTLE = 0,
 
@@ -65,24 +63,6 @@ enum castling {
 enum flags { NO_FLAG, PROMOTION, ENPASSANT, CASTLING };
 enum slider { CROSS, DIAG };
 
-struct tables {
-    U64 bit[64];
-    U64 rank_masks[64];
-    U64 file_masks[64];
-    U64 diag_masks[64];
-    U64 anti_masks[64];
-
-    U64 pawn_quiets[2][64];
-    U64 pawn_caps[2][64];
-    U64 knight_moves[64];
-    U64 king_moves[64];
-    U64 rays[8][256];
-
-    int revoke_castling[64];
-    U64 rook_switch[64];
-};
-
-static Tables tables;
 static const char pchars[] = " PNBRQK??pnbrqk";
 static const U64 HASH = 2859235813007982802;
 static U64 hashxor[512];
@@ -1227,10 +1207,10 @@ int board_gameover(const Board *board, const int legal_moves)
  *  return the outcome of the game, assuming the game has reached a terminal
  *  state
  */
-int board_terminal(const Board *board, const int legal_moves)
+int board_terminal(const Board *board, const int legal_moves, int depth)
 {
     if (legal_moves == 0 && board->nchecks) {
-        return CHECKMATE;
+        return CHECKMATE - depth;
     }
     return 0;
 }

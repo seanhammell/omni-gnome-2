@@ -4,23 +4,23 @@ const int empty_pst[64] = {0};
 
 const int pawn_pst[64] = {
      0,   0,   0,   0,   0,   0,   0,   0,
-    50,  50,  50,  50,  50,  50,  50,  50,
-    10,  10,  20,  30,  30,  20,  10,  10,
-     5,   5,  10,  25,  25,  10,   5,   5,
-     0,   0,   0,  20,  20,   0,   0,   0,
-     5,  -5, -10,   0,   0, -10,  -5,   5,
-     5,  10,  10, -20, -20,  10,  10,   5,
+    30,  30,  30,  30,  30,  30,  30,  30,
+    15,  20,  20,  25,  25,  20,  20,  15,
+    10,  15,  15,  20,  20,  15,  15,  10,
+     5,  10,  10,  15,  15,  10,  10,   5,
+     0,   0,   0,   0,   0,   0,   0,   0,
+     0,   0,   0, -10, -10,   0,   0,   0,
      0,   0,   0,   0,   0,   0,   0,   0,
 };
 
 const int knight_pst[64] = {
     -50, -40, -30, -30, -30, -30, -40, -50,
-    -40, -20,   0,   0,   0,   0, -20, -40,
-    -30,   0,  10,  15,  15,  10,   0, -30,
-    -30,   5,  15,  20,  20,  15,   5, -30,
-    -30,   0,  15,  20,  20,  15,   0, -30,
-    -30,   5,  10,  15,  15,  10,   5, -30,
-    -40, -20,   0,   5,   5,   0, -20, -40,
+    -40,   0,   0,   0,   0,   0,   0, -40,
+    -30,   0,  10,  10,  10,  10,   0, -30,
+    -30,   0,  10,  20,  20,  10,   0, -30,
+    -30,   0,  10,  20,  20,  10,   0, -30,
+    -30,   0,  10,  10,  10,  10,   0, -30,
+    -40,   0,   0,   0,   0,   0,   0, -40,
     -50, -40, -30, -30, -30, -30, -40, -50,
 };
 
@@ -28,10 +28,10 @@ const int bishop_pst[64] = {
     -20, -10, -10, -10, -10, -10, -10, -20,
     -10,   0,   0,   0,   0,   0,   0, -10,
     -10,   0,   5,  10,  10,   5,   0, -10,
-    -10,   5,   5,  10,  10,   5,   5, -10,
-    -10,   0,  10,  10,  10,  10,   0, -10,
-    -10,  10,  10,  10,  10,  10,  10, -10,
-    -10,   5,   0,   0,   0,   0,   5, -10,
+    -10,   5,  10,  15,  15,  10,   5, -10,
+    -10,  10,  15,  15,  15,  15,  10, -10,
+    -10,  15,  15,  15,  15,  15,  15, -10,
+    -10,   5,   5,   5,   5,   5,   5, -10,
     -20, -10, -10, -10, -10, -10, -10, -20,
 };
 
@@ -106,6 +106,56 @@ int material(Board *board)
 }
 
 /**
+ * structure
+ *  evaluate the pawn structure of each side
+ */
+int structure(Board *board)
+{
+    int i, score;
+    int blocked, doubled, isolated;
+    U64 ally_pawns, enemy_pawns;
+    U64 ally_push, enemy_push;
+
+    score = blocked = doubled = isolated = 0;
+
+    ally_pawns = board->piecebb[PAWN] & board->colorbb[board->side];
+    enemy_pawns = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
+
+    for (i = 0; i < 8; ++i) {
+        if (POPCNT(ally_pawns & tables.file_masks[i]) > 1)
+            --doubled;
+        if (POPCNT(enemy_pawns & tables.file_masks[i]) > 1)
+            ++doubled;
+
+        if (i > 0)
+            if (!(ally_pawns & tables.file_masks[i - 1]))
+                --isolated;
+            if (!(enemy_pawns & tables.file_masks[i - 1]))
+                ++isolated;
+        if (i < 7)
+            if (!(ally_pawns & tables.file_masks[i + 1]))
+                --isolated;
+            if (!(enemy_pawns & tables.file_masks[i + 1]))
+                ++isolated;
+    }
+
+    if (board->side == WHITE) {
+        ally_push = ally_pawns << 8 & ~board->colorbb[BLACK];
+        enemy_push = enemy_pawns >> 8 & ~board->colorbb[WHITE];
+    } else {
+        ally_push = ally_pawns >> 8 & ~board->colorbb[WHITE];
+        enemy_push = enemy_pawns << 8 & ~board->colorbb[BLACK];
+    }
+
+    blocked -= POPCNT(ally_pawns) - POPCNT(ally_push);
+    blocked += POPCNT(enemy_pawns) - POPCNT(enemy_push);
+
+    score = blocked + doubled + isolated;
+    score *= 50;
+    return score;
+}
+
+/**
  * pst_bonus
  *  calculate bonuses based on which square a piece is standing on
  */
@@ -156,6 +206,7 @@ int eval_heuristic(Board *board)
 
     score = 0;
     score += material(board);
+    score += structure(board);
     score += pst_bonus(board);
     return score;
 }
