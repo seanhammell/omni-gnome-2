@@ -6,7 +6,8 @@
 #include "search.h"
 #include "eval.h"
 
-#define WINDOW  25
+#define MAXQUIESCE  5
+#define WINDOW      25
 
 /**
  * gettimems
@@ -126,7 +127,7 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
  * quiesce
  *  extend the search until a quiet position is found
  */
-int quiesce(Board *board, SearchInfo *sinfo, int alpha, int beta)
+int quiesce(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
 {
     int i, score, standpat;
     Move movelist[128];
@@ -136,7 +137,7 @@ int quiesce(Board *board, SearchInfo *sinfo, int alpha, int beta)
         return 0;
 
     ++sinfo->nodes;
-    if (board->quiet)
+    if (depth == 0)
         return eval_heuristic(board);
 
     standpat = eval_heuristic(board);
@@ -148,7 +149,7 @@ int quiesce(Board *board, SearchInfo *sinfo, int alpha, int beta)
     const int count = board_captures(board, movelist);
     for (i = 0; i < count; ++i) {
         board_make(board, movelist[i]);
-        score = -quiesce(board, sinfo, -beta, -alpha);
+        score = -quiesce(board, sinfo, depth - 1, -beta, -alpha);
         board_unmake(board, movelist[i]);
         if (score >= beta)
             return beta;
@@ -169,7 +170,7 @@ int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
     Move movelist[128];
 
     if (depth == 0)
-        return quiesce(board, sinfo, alpha, beta);
+        return quiesce(board, sinfo, MAXQUIESCE, alpha, beta);
 
     checkstop(sinfo);
     if (sinfo->stop)

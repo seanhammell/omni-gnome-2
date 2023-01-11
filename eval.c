@@ -1,19 +1,19 @@
 #include "eval.h"
 
-const int empty_pst[64] = {0};
+enum pstindex { PAWN_PST, KNIGHT_PST, KING_MG_PST, KING_EG_PST };
 
 const int pawn_pst[64] = {
      0,   0,   0,   0,   0,   0,   0,   0,
-    30,  30,  30,  30,  30,  30,  30,  30,
+    50,  50,  50,  50,  50,  50,  50,  50,
+    25,  30,  30,  35,  35,  30,  30,  25,
+    20,  25,  25,  30,  30,  25,  25,  20,
     15,  20,  20,  25,  25,  20,  20,  15,
-    10,  15,  15,  20,  20,  15,  15,  10,
-     5,  10,  10,  15,  15,  10,  10,   5,
-     0,   0,   0,   0,   0,   0,   0,   0,
+    10,  15,  15,   0,   0,  15,  15,  10,
      0,   0,   0, -10, -10,   0,   0,   0,
      0,   0,   0,   0,   0,   0,   0,   0,
 };
 
-const int center_pst[64] = {
+const int knight_pst[64] = {
     0,   0,   0,   0,   0,   0,   0,   0,
     0,  10,  10,  10,  10,  10,  10,   0,
     0,  10,  20,  20,  20,  20,  10,   0,
@@ -24,7 +24,7 @@ const int center_pst[64] = {
     0,   0,   0,   0,   0,   0,   0,   0,
 };
 
-const int king_middle_game_pst[] = {
+const int king_mg_pst[] = {
     -30, -40, -40, -50, -50, -40, -40, -30,
     -30, -40, -40, -50, -50, -40, -40, -30,
     -30, -40, -40, -50, -50, -40, -40, -30,
@@ -35,7 +35,7 @@ const int king_middle_game_pst[] = {
      20,  30,  10,   0,   0,  10,  30,  20,
 };
 
-const int king_end_game_pst[] = {
+const int king_eg_pst[] = {
     -50, -40, -30, -20, -20, -30, -40, -50,
     -30, -20, -10,   0,   0, -10, -20, -30,
     -30, -10,  20,  30,  30,  20, -10, -30,
@@ -47,26 +47,7 @@ const int king_end_game_pst[] = {
 };
 
 const int values[] = {0, 100, 320, 330, 500, 900, 20000};
-
-/**
- * material
- *  evaluate the material difference between sides
- */
-int material(Board *board)
-{
-    int i, score;
-    U64 allies, enemies;
-
-    allies = board->colorbb[board->side];
-    enemies = board->colorbb[board->side ^ 1];
-
-    score = 0;
-    for (i = ROOK; i <= KING; ++i) {
-        score += values[i] * POPCNT(board->piecebb[i] & allies);
-        score -= values[i] * POPCNT(board->piecebb[i] & enemies);
-    }
-    return score;
-}
+const int *pst[] = { pawn_pst, knight_pst, king_mg_pst, king_eg_pst };
 
 /**
  * pstbonus
@@ -85,108 +66,132 @@ int pstbonus(U64 pieces, const int *pst, const int flip)
 }
 
 /**
- * pawns
- *  return the score for pawns based on material, standing, and structure
+ * nbishop_attacks
+ *  return the number of bishop attacks
  */
-int pawns(const Board *board)
+int nbishop_attacks(const Board *board, U64 piecebb, const int side)
 {
-    int i, material, standing, structure;
-    int blocked, doubled, isolated;
-    U64 ally_pawns, enemy_pawns;
-    U64 ally_push, enemy_push;
+    int i, ray, count;
 
-    blocked = doubled = isolated = 0;
-
-    ally_pawns = board->piecebb[PAWN] & board->colorbb[board->side];
-    enemy_pawns = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
-
-    material = (POPCNT(ally_pawns) - POPCNT(enemy_pawns)) * values[PAWN];
-
-    for (i = 0; i < 8; ++i) {
-        if (POPCNT(ally_pawns & tables.file_masks[i]) > 1)
-            --doubled;
-        if (POPCNT(enemy_pawns & tables.file_masks[i]) > 1)
-            ++doubled;
-
-        if (i > 0) {
-            if (!(ally_pawns & tables.file_masks[i - 1]))
-                --isolated;
-            if (!(enemy_pawns & tables.file_masks[i - 1]))
-                ++isolated;
-        }
-        if (i < 7) {
-            if (!(ally_pawns & tables.file_masks[i + 1]))
-                --isolated;
-            if (!(enemy_pawns & tables.file_masks[i + 1]))
-                ++isolated;
-        }
+    count = 0;
+    while (piecebb) {
+        i = board_pullbit(&piecebb);
+        ray = board_slide045(board, i) | board_slide135(board, i);
+        ray &= ~board->colorbb[side];
+        count += POPCNT(ray);
     }
-
-    standing = 0;
-    if (board->side == WHITE) {
-        ally_push = ally_pawns << 8 & ~board->colorbb[BLACK];
-        enemy_push = enemy_pawns >> 8 & ~board->colorbb[WHITE];
-        standing += pstbonus(ally_pawns, pawn_pst, 0);
-        standing -= pstbonus(enemy_pawns, pawn_pst, 56);
-    } else {
-        ally_push = ally_pawns >> 8 & ~board->colorbb[WHITE];
-        enemy_push = enemy_pawns << 8 & ~board->colorbb[BLACK];
-        standing += pstbonus(ally_pawns, pawn_pst, 56);
-        standing -= pstbonus(enemy_pawns, pawn_pst, 0);
-    }
-    blocked -= POPCNT(ally_pawns) - POPCNT(ally_push);
-    blocked += POPCNT(enemy_pawns) - POPCNT(enemy_push);
-    structure = (blocked + doubled + isolated) * 50;
-
-    return material + standing + structure;
+    return count;
 }
 
 /**
- * minors
- *  return the score for minor piece material and standing
+ * nrook_attacks
+ *  return the number of rook attacks
  */
-int minors(const Board *board)
+int nrook_attacks(const Board *board, U64 piecebb, const int side)
 {
+    int i, ray, count;
+
+    count = 0;
+    while (piecebb) {
+        i = board_pullbit(&piecebb);
+        ray = board_slide000(board, i) | board_slide090(board, i);
+        ray &= ~board->colorbb[side];
+        count += POPCNT(ray);
+    }
+    return count;
+}
+
+/**
+ * crawlers
+ *  return the score for crawling pieces based on material and standing
+ */
+int crawlers(const Board *board, const int piece, const int pst_idx)
+{
+    int i;
     int material, standing;
-    U64 ally_knights, ally_bishops;
-    U64 enemy_knights, enemy_bishops;
+    U64 allies, enemies;
 
-    ally_knights = board->piecebb[KNIGHT] & board->colorbb[board->side];
-    ally_bishops = board->piecebb[BISHOP] & board->colorbb[board->side];
-    enemy_knights = board->piecebb[KNIGHT] & board->colorbb[board->side ^ 1];
-    enemy_bishops = board->piecebb[BISHOP] & board->colorbb[board->side ^ 1];
+    allies = board->piecebb[piece] & board->colorbb[board->side];
+    enemies = board->piecebb[piece] & board->colorbb[board->side ^ 1];
 
-    material = 0;
-    material += (POPCNT(ally_knights) - POPCNT(enemy_knights)) * values[KNIGHT];
-    material += (POPCNT(ally_bishops) - POPCNT(enemy_bishops)) * values[BISHOP];
+    material = (POPCNT(allies) - POPCNT(enemies)) * values[piece];
 
     standing = 0;
     if (board->side == WHITE) {
-        standing += pstbonus(ally_knights, center_pst, 0);
-        standing += pstbonus(ally_bishops, center_pst, 0);
-        standing -= pstbonus(enemy_knights, center_pst, 56);
-        standing -= pstbonus(enemy_bishops, center_pst, 56);
+        standing += pstbonus(allies, pst[pst_idx], 56);
+        standing -= pstbonus(enemies, pst[pst_idx], 0);
     } else {
-        standing += pstbonus(ally_knights, center_pst, 56);
-        standing += pstbonus(ally_bishops, center_pst, 56);
-        standing -= pstbonus(enemy_knights, center_pst, 0);
-        standing -= pstbonus(enemy_bishops, center_pst, 0);
+        standing += pstbonus(allies, pst[pst_idx], 0);
+        standing -= pstbonus(enemies, pst[pst_idx], 56);
     }
 
     return material + standing;
 }
 
 /**
+ * sliders
+ *  return the score for sliding pieces based on material and mobility
+ */
+int sliders(const Board *board, const int piece,
+            int (* const nattacks)(const Board *, U64, const int))
+{
+    int material, mobility;
+    U64 allies, enemies;
+
+    allies = board->piecebb[piece] & board->colorbb[board->side];
+    enemies = board->piecebb[piece] & board->colorbb[board->side ^ 1];
+
+    material = (POPCNT(allies) - POPCNT(enemies)) * values[piece];
+
+    mobility = 0;
+    mobility += nattacks(board, allies, board->side);
+    mobility -= nattacks(board, enemies, board->side ^ 1);
+    mobility *= 64 / POPCNT(board->colorbb[BOTH]);
+
+    return material + mobility;
+}
+
+/**
+ * queens
+ *  return the score for queens based on material and mobility
+ */
+int queens(const Board *board)
+{
+    int material, mobility;
+    U64 allies, enemies;
+
+    allies = board->piecebb[QUEEN] & board->colorbb[board->side];
+    enemies = board->piecebb[QUEEN] & board->colorbb[board->side ^ 1];
+
+    material = (POPCNT(allies) - POPCNT(enemies)) * values[QUEEN];
+
+    mobility = 0;
+    mobility += nbishop_attacks(board, allies, board->side);
+    mobility += nrook_attacks(board, allies, board->side);
+    mobility -= nbishop_attacks(board, enemies, board->side ^ 1);
+    mobility -= nrook_attacks(board, enemies, board->side ^ 1);
+    mobility *= 32 / POPCNT(board->colorbb[BOTH]);
+
+    return material + mobility;
+}
+
+/**
  * eval_heuristic
  *  evaluate the current board position
  */
-int eval_heuristic(Board *board)
+int eval_heuristic(const Board *board)
 {
     int score;
 
     score = 0;
-    score += material(board);
-    score += pawns(board);
-    score += minors(board);
+    score += crawlers(board, PAWN, PAWN_PST);
+    score += crawlers(board, KNIGHT, KNIGHT_PST);
+    score += sliders(board, BISHOP, nbishop_attacks);
+    score += sliders(board, ROOK, nrook_attacks);
+    score += queens(board);
+    if (board->piecebb[QUEEN])
+        score += crawlers(board, KING, KING_MG_PST);
+    else
+        score += crawlers(board, KING, KING_EG_PST);
     return score;
 }

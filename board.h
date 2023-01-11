@@ -9,7 +9,7 @@
 #define LSB(x)      __builtin_ctzll(x)
 #define POPCNT(x)   __builtin_popcountll(x)
 
-typedef uint32_t U32;
+typedef uint16_t U16;
 typedef uint64_t U64;
 
 typedef struct tables Tables;
@@ -43,9 +43,8 @@ struct board {
     int castling;
     int eptarget;
     int rule50;
-    int quiet;
     int plynb;
-    U32 undo[1024];
+    U16 undo[1024];
     U64 history[1024];
 
     U64 pins[2];
@@ -67,6 +66,12 @@ void board_display(const Board *board);
 void board_printmove(Move move);
 
 int board_pullbit(U64 *bb);
+
+U64 board_slide000(const Board *board, const int i);
+U64 board_slide045(const Board *board, const int i);
+U64 board_slide090(const Board *board, const int i);
+U64 board_slide135(const Board *board, const int i);
+
 int board_generate(Board *board, Move *movelist);
 int board_captures(Board *board, Move *movelist);
 

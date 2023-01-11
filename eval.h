@@ -3,6 +3,6 @@
 
 #include "board.h"
 
-int eval_heuristic(Board *board);
+int eval_heuristic(const Board *board);
 
 #endif  /* EVAL_H */

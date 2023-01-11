@@ -38,12 +38,10 @@
 #define RULE50(x)   (x & 63)
 #define ENP(x)      ((x >> 6) & 63)
 #define CASTLE(x)   ((x >> 12) & 15)
-#define QUIET(x)    ((x >> 16) & 1)
 
 #define RULE50_(x)  (x)
 #define ENP_(x)     (x << 6)
 #define CASTLE_(x)  (x << 12)
-#define QUIET_(x)    (x << 16)
 
 #define FLAG_HASH(s, e, c)   (s | ((e % 15) << 4) | (c << 8))
 
@@ -366,7 +364,6 @@ void board_parsefen(Board *board, char *fen)
     if (ep[0] != '-')
         board->eptarget = 8 * (ep[1] - '1') + (ep[0] - 'a');
     board->rule50 = rule50;
-    board->quiet = 1;
     board->plynb = 0;
     board->history[board->plynb] = hashposition(board);
     board->capmask = ~0ull;
@@ -509,10 +506,10 @@ int board_pullbit(U64 *bb)
 }
 
 /**
- * slide000
+ * board_slide000
  *  compute horizontal sliding attacks
  */
-U64 slide000(const Board *board, const int i)
+U64 board_slide000(const Board *board, const int i)
 {
     U64 occ, ray;
 
@@ -525,10 +522,10 @@ U64 slide000(const Board *board, const int i)
 }
 
 /**
- * slide045
+ * board_slide045
  *  compute diagonal sliding attacks
  */
-U64 slide045(const Board *board, const int i)
+U64 board_slide045(const Board *board, const int i)
 {
     U64 occ, ray;
 
@@ -541,10 +538,10 @@ U64 slide045(const Board *board, const int i)
 }
 
 /**
- * slide090
+ * board_slide090
  *  compute file sliding attacks
  */
-U64 slide090(const Board *board, const int i)
+U64 board_slide090(const Board *board, const int i)
 {
     U64 occ, ray;
 
@@ -559,10 +556,10 @@ U64 slide090(const Board *board, const int i)
 }
 
 /**
- * slide135
+ * board_slide135
  *  compute anti-diagonal sliding attacks
  */
-U64 slide135(const Board *board, const int i)
+U64 board_slide135(const Board *board, const int i)
 {
     U64 occ, ray;
 
@@ -711,7 +708,7 @@ void setdanger(Board *board)
 
     const int sliders[4] = {ROOK, BISHOP, ROOK, BISHOP};
     U64 (* const slide[4])(const Board *, const int) = {
-        slide000, slide045, slide090, slide135
+        board_slide000, board_slide045, board_slide090, board_slide135
     };
 
     board->pins[CROSS] = board->pins[DIAG] = 0;
@@ -827,7 +824,7 @@ U64 bishoptargets(const Board *board, const int i)
 {
     U64 ray;
 
-    ray = slide045(board, i) | slide135(board, i);
+    ray = board_slide045(board, i) | board_slide135(board, i);
     ray &= ~board->colorbb[board->side];
     ray &= board->checkmask;
     return ray;
@@ -852,7 +849,7 @@ U64 rooktargets(const Board *board, const int i)
 {
     U64 ray;
 
-    ray = slide000(board, i) | slide090(board, i);
+    ray = board_slide000(board, i) | board_slide090(board, i);
     ray &= ~board->colorbb[board->side];
     ray &= board->checkmask;
     return ray;
@@ -1119,7 +1116,6 @@ void domove(Board *board, Move move)
         }
     }
     if (target != EMPTY) {
-        board->quiet = 0;
         board->piecebb[target] ^= tables.bit[to];
         board->colorbb[board->side ^ 1] ^= tables.bit[to];
         if (target == ROOK)
@@ -1135,18 +1131,16 @@ void domove(Board *board, Move move)
  */
 void board_make(Board *board, Move move)
 {
-    U32 undo;
+    U16 undo;
 
     undo = RULE50_(board->rule50);
     undo |= ENP_(board->eptarget);
     undo |= CASTLE_(board->castling);
-    undo |= QUIET_(board->quiet);
     board->undo[board->plynb] = undo;
     ++board->plynb;
     assert(board->plynb < 1024);
     ++board->rule50;
     board->eptarget = 0;
-    board->quiet = 1;
 
     domove(board, move);
 
@@ -1168,7 +1162,6 @@ void board_unmake(Board *board, Move move)
     board->rule50 = RULE50(board->undo[board->plynb]);
     board->eptarget = ENP(board->undo[board->plynb]);
     board->castling = CASTLE(board->undo[board->plynb]);
-    board->quiet = QUIET(board->undo[board->plynb]);
 }
 
 /**
