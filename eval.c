@@ -13,48 +13,15 @@ const int pawn_pst[64] = {
      0,   0,   0,   0,   0,   0,   0,   0,
 };
 
-const int knight_pst[64] = {
-    -50, -40, -30, -30, -30, -30, -40, -50,
-    -40,   0,   0,   0,   0,   0,   0, -40,
-    -30,   0,  10,  10,  10,  10,   0, -30,
-    -30,   0,  10,  20,  20,  10,   0, -30,
-    -30,   0,  10,  20,  20,  10,   0, -30,
-    -30,   0,  10,  10,  10,  10,   0, -30,
-    -40,   0,   0,   0,   0,   0,   0, -40,
-    -50, -40, -30, -30, -30, -30, -40, -50,
-};
-
-const int bishop_pst[64] = {
-    -20, -10, -10, -10, -10, -10, -10, -20,
-    -10,   0,   0,   0,   0,   0,   0, -10,
-    -10,   0,   5,  10,  10,   5,   0, -10,
-    -10,   5,  10,  15,  15,  10,   5, -10,
-    -10,  10,  15,  15,  15,  15,  10, -10,
-    -10,  15,  15,  15,  15,  15,  15, -10,
-    -10,   5,   5,   5,   5,   5,   5, -10,
-    -20, -10, -10, -10, -10, -10, -10, -20,
-};
-
-const int rook_pst[64] = {
-     0,   0,   0,   0,   0,   0,   0,   0,
-     5,  10,  10,  10,  10,  10,  10,   5,
-    -5,   0,   0,   0,   0,   0,   0,  -5,
-    -5,   0,   0,   0,   0,   0,   0,  -5,
-    -5,   0,   0,   0,   0,   0,   0,  -5,
-    -5,   0,   0,   0,   0,   0,   0,  -5,
-    -5,   0,   0,   0,   0,   0,   0,  -5,
-     0,   0,   0,   5,   5,   0,   0,   0,
-};
-
-const int queen_pst[64] = {
-    -20, -10, -10,  -5,  -5, -10, -10, -20,
-    -10,   0,   0,   0,   0,   0,   0, -10,
-    -10,   0,   5,   5,   5,   5,   0, -10,
-     -5,   0,   5,   5,   5,   5,   0,  -5,
-      0,   0,   5,   5,   5,   5,   0,  -5,
-    -10,   5,   5,   5,   5,   5,   0, -10,
-    -10,   0,   5,   0,   0,   0,   0, -10,
-    -20, -10, -10,  -5,  -5, -10, -10, -20,
+const int center_pst[64] = {
+    0,   0,   0,   0,   0,   0,   0,   0,
+    0,  10,  10,  10,  10,  10,  10,   0,
+    0,  10,  20,  20,  20,  20,  10,   0,
+    0,  10,  20,  30,  30,  20,  10,   0,
+    0,  10,  20,  30,  30,  20,  10,   0,
+    0,  10,  20,  20,  20,  20,  10,   0,
+    0,  10,  10,  10,  10,  10,  10,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,
 };
 
 const int king_middle_game_pst[] = {
@@ -79,9 +46,7 @@ const int king_end_game_pst[] = {
     -50, -30, -30, -30, -30, -30, -30, -50,
 };
 
-const int *piece_square_tables[] = {
-    empty_pst, pawn_pst, knight_pst, bishop_pst, rook_pst, queen_pst
-};
+const int values[] = {0, 100, 320, 330, 500, 900, 20000};
 
 /**
  * material
@@ -92,13 +57,11 @@ int material(Board *board)
     int i, score;
     U64 allies, enemies;
 
-    const int values[] = {0, 100, 320, 330, 500, 900, 20000};
-
     allies = board->colorbb[board->side];
     enemies = board->colorbb[board->side ^ 1];
 
     score = 0;
-    for (i = PAWN; i <= KING; ++i) {
+    for (i = ROOK; i <= KING; ++i) {
         score += values[i] * POPCNT(board->piecebb[i] & allies);
         score -= values[i] * POPCNT(board->piecebb[i] & enemies);
     }
@@ -106,20 +69,38 @@ int material(Board *board)
 }
 
 /**
- * structure
- *  evaluate the pawn structure of each side
+ * pstbonus
+ *  calculate the piece-square table bonus for the given pieces
  */
-int structure(Board *board)
+int pstbonus(U64 pieces, const int *pst, const int flip)
 {
     int i, score;
+
+    score = 0;
+    while (pieces) {
+        i = board_pullbit(&pieces) ^ flip;
+        score += pst[i];
+    }
+    return score;
+}
+
+/**
+ * pawns
+ *  return the score for pawns based on material, standing, and structure
+ */
+int pawns(const Board *board)
+{
+    int i, material, standing, structure;
     int blocked, doubled, isolated;
     U64 ally_pawns, enemy_pawns;
     U64 ally_push, enemy_push;
 
-    score = blocked = doubled = isolated = 0;
+    blocked = doubled = isolated = 0;
 
     ally_pawns = board->piecebb[PAWN] & board->colorbb[board->side];
     enemy_pawns = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
+
+    material = (POPCNT(ally_pawns) - POPCNT(enemy_pawns)) * values[PAWN];
 
     for (i = 0; i < 8; ++i) {
         if (POPCNT(ally_pawns & tables.file_masks[i]) > 1)
@@ -127,73 +108,72 @@ int structure(Board *board)
         if (POPCNT(enemy_pawns & tables.file_masks[i]) > 1)
             ++doubled;
 
-        if (i > 0)
+        if (i > 0) {
             if (!(ally_pawns & tables.file_masks[i - 1]))
                 --isolated;
             if (!(enemy_pawns & tables.file_masks[i - 1]))
                 ++isolated;
-        if (i < 7)
+        }
+        if (i < 7) {
             if (!(ally_pawns & tables.file_masks[i + 1]))
                 --isolated;
             if (!(enemy_pawns & tables.file_masks[i + 1]))
                 ++isolated;
+        }
     }
 
+    standing = 0;
     if (board->side == WHITE) {
         ally_push = ally_pawns << 8 & ~board->colorbb[BLACK];
         enemy_push = enemy_pawns >> 8 & ~board->colorbb[WHITE];
+        standing += pstbonus(ally_pawns, pawn_pst, 0);
+        standing -= pstbonus(enemy_pawns, pawn_pst, 56);
     } else {
         ally_push = ally_pawns >> 8 & ~board->colorbb[WHITE];
         enemy_push = enemy_pawns << 8 & ~board->colorbb[BLACK];
+        standing += pstbonus(ally_pawns, pawn_pst, 56);
+        standing -= pstbonus(enemy_pawns, pawn_pst, 0);
     }
-
     blocked -= POPCNT(ally_pawns) - POPCNT(ally_push);
     blocked += POPCNT(enemy_pawns) - POPCNT(enemy_push);
+    structure = (blocked + doubled + isolated) * 50;
 
-    score = blocked + doubled + isolated;
-    score *= 50;
-    return score;
+    return material + standing + structure;
 }
 
 /**
- * pst_bonus
- *  calculate bonuses based on which square a piece is standing on
+ * minors
+ *  return the score for minor piece material and standing
  */
-int pst_bonus(Board *board)
+int minors(const Board *board)
 {
-    int i, j, score;
-    int ally_sq_flip, enemy_sq_flip;
-    U64 allies, enemies, piece, ally_king, enemy_king;
+    int material, standing;
+    U64 ally_knights, ally_bishops;
+    U64 enemy_knights, enemy_bishops;
 
-    allies = board->colorbb[board->side];
-    enemies = board->colorbb[board->side ^ 1];
+    ally_knights = board->piecebb[KNIGHT] & board->colorbb[board->side];
+    ally_bishops = board->piecebb[BISHOP] & board->colorbb[board->side];
+    enemy_knights = board->piecebb[KNIGHT] & board->colorbb[board->side ^ 1];
+    enemy_bishops = board->piecebb[BISHOP] & board->colorbb[board->side ^ 1];
 
-    ally_sq_flip = 56 * board->side;
-    enemy_sq_flip = 56 * (board->side ^ 1);
+    material = 0;
+    material += (POPCNT(ally_knights) - POPCNT(enemy_knights)) * values[KNIGHT];
+    material += (POPCNT(ally_bishops) - POPCNT(enemy_bishops)) * values[BISHOP];
 
-    score = 0;
-    for (i = PAWN; i < KING; ++i) {
-        piece = board->piecebb[i] & allies;
-        while (piece) {
-            j = board_pullbit(&piece) ^ ally_sq_flip;
-            score += piece_square_tables[i][j];
-        }
-        piece = board->piecebb[i] & enemies;
-        while (piece) {
-            j = board_pullbit(&piece) ^ enemy_sq_flip;
-            score -= piece_square_tables[i][j];
-        }
-    }
-    ally_king = board->piecebb[KING] & allies;
-    enemy_king = board->piecebb[KING] & enemies;
-    if (board->piecebb[QUEEN]) {
-        score += king_middle_game_pst[LSB(ally_king) ^ ally_sq_flip];
-        score -= king_middle_game_pst[LSB(enemy_king) ^ enemy_sq_flip];
+    standing = 0;
+    if (board->side == WHITE) {
+        standing += pstbonus(ally_knights, center_pst, 0);
+        standing += pstbonus(ally_bishops, center_pst, 0);
+        standing -= pstbonus(enemy_knights, center_pst, 56);
+        standing -= pstbonus(enemy_bishops, center_pst, 56);
     } else {
-        score += king_end_game_pst[LSB(ally_king) ^ ally_sq_flip];
-        score -= king_end_game_pst[LSB(enemy_king) ^ enemy_sq_flip];
+        standing += pstbonus(ally_knights, center_pst, 56);
+        standing += pstbonus(ally_bishops, center_pst, 56);
+        standing -= pstbonus(enemy_knights, center_pst, 0);
+        standing -= pstbonus(enemy_bishops, center_pst, 0);
     }
-    return score;
+
+    return material + standing;
 }
 
 /**
@@ -206,7 +186,7 @@ int eval_heuristic(Board *board)
 
     score = 0;
     score += material(board);
-    score += structure(board);
-    score += pst_bonus(board);
+    score += pawns(board);
+    score += minors(board);
     return score;
 }
