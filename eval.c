@@ -1,6 +1,6 @@
 #include "eval.h"
 
-const int values[] = {0, 100, 300, 300, 500, 900};
+static const int values[] = {0, 100, 300, 300, 500, 900};
 
 /**
  * material

@@ -52,7 +52,7 @@ struct board {
     U64 checkmask;
     int nchecks;
 
-    U64 capmask;
+    U64 targetmask;
 };
 
 static Tables tables;
@@ -72,8 +72,8 @@ U64 board_slide045(const Board *board, const int i);
 U64 board_slide090(const Board *board, const int i);
 U64 board_slide135(const Board *board, const int i);
 
-int board_generate(Board *board, Move *movelist);
 int board_captures(Board *board, Move *movelist);
+int board_generate(Board *board, Move *movelist);
 
 void board_make(Board *board, Move move);
 void board_unmake(Board *board, Move move);

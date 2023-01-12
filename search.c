@@ -6,9 +6,6 @@
 #include "search.h"
 #include "eval.h"
 
-#define MAXQUIESCE  5
-#define WINDOW      50
-
 /**
  * gettimems
  *  get the current time in milliseconds
@@ -127,7 +124,7 @@ U64 search_perft(Board *board, SearchInfo *sinfo, int depth)
  * quiesce
  *  extend the search until a quiet position is found
  */
-int quiesce(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
+int quiesce(Board *board, SearchInfo *sinfo, int alpha, int beta)
 {
     int i, score, standpat;
     Move movelist[128];
@@ -137,9 +134,6 @@ int quiesce(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
         return 0;
 
     ++sinfo->nodes;
-    if (depth == 0)
-        return eval_heuristic(board);
-
     standpat = eval_heuristic(board);
     if (standpat >= beta)
         return beta;
@@ -149,7 +143,7 @@ int quiesce(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
     const int count = board_captures(board, movelist);
     for (i = 0; i < count; ++i) {
         board_make(board, movelist[i]);
-        score = -quiesce(board, sinfo, depth - 1, -beta, -alpha);
+        score = -quiesce(board, sinfo, -beta, -alpha);
         board_unmake(board, movelist[i]);
         if (score >= beta)
             return beta;
@@ -170,7 +164,7 @@ int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
     Move movelist[128];
 
     if (depth == 0)
-        return quiesce(board, sinfo, MAXQUIESCE, alpha, beta);
+        return quiesce(board, sinfo, alpha, beta);
 
     checkstop(sinfo);
     if (sinfo->stop)
@@ -199,38 +193,22 @@ int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
  */
 void search_driver(Board *board, SearchInfo *sinfo)
 {
-    int i, depth, score, best;
+    int i, depth, score;
     int alpha, beta;
     Move provisional, best_move, movelist[128];
 
-    alpha = -INF;
-    beta = INF;
-
     const int count = board_generate(board, movelist);
     for (depth = 1; depth <= sinfo->depth; ++depth) {
-        for (;;) {
-            best = -INF;
-            for (i = 0; i < count; ++i) {
-                board_make(board, movelist[i]);
-                score = -alphabeta(board, sinfo, depth - 1, -beta, -alpha);
-                board_unmake(board, movelist[i]);
-                if (score > best) {
-                    best = score;
-                    provisional = movelist[i];
-                }
+        alpha = -INF;
+        beta = INF;
+        for (i = 0; i < count; ++i) {
+            board_make(board, movelist[i]);
+            score = -alphabeta(board, sinfo, depth - 1, -beta, -alpha);
+            board_unmake(board, movelist[i]);
+            if (score > alpha) {
+                alpha = score;
+                provisional = movelist[i];
             }
-            if (best > alpha && best < beta)
-                break;
-            alpha = -INF;
-            beta = INF;
-        }
-
-        if (depth > 3) {
-            alpha = best - WINDOW;
-            beta = best + WINDOW;
-        } else {
-            alpha = -INF;
-            beta = INF;
         }
 
         checkstop(sinfo);

@@ -366,7 +366,6 @@ void board_parsefen(Board *board, char *fen)
     board->rule50 = rule50;
     board->plynb = 0;
     board->history[board->plynb] = hashposition(board);
-    board->capmask = ~0ull;
 }
 
 /**
@@ -786,9 +785,11 @@ U64 pawntargets(const Board *board, const int i)
  */
 U64 pinnedpawn(const Board *board, const int i)
 {
-    if (tables.bit[i] & board->pins[DIAG])
+    if ((tables.bit[i] & board->pins[DIAG]) &&
+        board->targetmask == board->colorbb[board->side ^ 1])
         return pawncaps(board, i) & board->pins[DIAG];
-    else if (board->capmask == ~0ull)
+    else if ((tables.bit[i] & board->pins[CROSS]) &&
+             board->targetmask == ~board->colorbb[board->side ^ 1])
         return pawnquiets(board, i) & board->pins[CROSS];
     return 0ull;
 }
@@ -941,7 +942,7 @@ void serialize(Board *board, Move *movelist, int *count, const int piece,
 
     while (bitboard) {
         i = board_pullbit(&bitboard);
-        targets = moves(board, i) & board->capmask;
+        targets = moves(board, i) & board->targetmask;
         while (targets) {
             j = board_pullbit(&targets);
             for (cap = EMPTY; cap < KING; ++cap)
@@ -1022,29 +1023,23 @@ void castlegen(const Board *board, Move *movelist, int *count)
 }
 
 /**
- * board_generate
- *  generate all legal moves in the current position and return the count
+ * mvvlva
+ *  sort captures in decending order based on exchange value
  */
-int board_generate(Board *board, Move *movelist)
+void mvvlva(Move *movelist, int count)
 {
-    int count;
+    int i, j;
+    Move temp;
 
-    count = 0;
-
-    setdanger(board);
-
-    if (board->nchecks < 2) {
-        movegen(board, movelist, &count, PAWN, pawntargets, pinnedpawn);
-        movegen(board, movelist, &count, KNIGHT, knighttargets, pinnedknight);
-        movegen(board, movelist, &count, BISHOP, bishoptargets, pinnedbishop);
-        movegen(board, movelist, &count, ROOK, rooktargets, pinnedrook);
-        movegen(board, movelist, &count, QUEEN, queentargets, pinnedqueen);
-        if (!board->nchecks && CASTLE_RIGHTS(board))
-            castlegen(board, movelist, &count);
+    for (i = count; i > 0; --i) {
+        for (j = 0; j < i - 1; ++j) {
+            if (TARGET(movelist[j]) < TARGET(movelist[j + 1])) {
+                temp = movelist[j];
+                movelist[j] = movelist[j + 1];
+                movelist[j + 1] = temp;
+            }
+        }
     }
-    kinggen(board, movelist, &count);
-
-    return count;
 }
 
 /**
@@ -1059,7 +1054,7 @@ int board_captures(Board *board, Move *movelist)
 
     setdanger(board);
 
-    board->capmask = board->colorbb[board->side ^ 1];
+    board->targetmask = board->colorbb[board->side ^ 1];
     if (board->nchecks < 2) {
         movegen(board, movelist, &count, PAWN, pawncaps, pinnedpawn);
         movegen(board, movelist, &count, KNIGHT, knighttargets, pinnedknight);
@@ -1068,7 +1063,32 @@ int board_captures(Board *board, Move *movelist)
         movegen(board, movelist, &count, QUEEN, queentargets, pinnedqueen);
     }
     kinggen(board, movelist, &count);
-    board->capmask = ~0ull;
+    mvvlva(movelist, count);
+
+    return count;
+}
+
+/**
+ * board_generate
+ *  generate all legal moves in the current position and return the count
+ */
+int board_generate(Board *board, Move *movelist)
+{
+    int count;
+
+    count = board_captures(board, movelist);
+
+    board->targetmask = ~board->colorbb[board->side ^ 1];
+    if (board->nchecks < 2) {
+        movegen(board, movelist, &count, PAWN, pawntargets, pinnedpawn);
+        movegen(board, movelist, &count, KNIGHT, knighttargets, pinnedknight);
+        movegen(board, movelist, &count, BISHOP, bishoptargets, pinnedbishop);
+        movegen(board, movelist, &count, ROOK, rooktargets, pinnedrook);
+        movegen(board, movelist, &count, QUEEN, queentargets, pinnedqueen);
+        if (!board->nchecks && CASTLE_RIGHTS(board))
+            castlegen(board, movelist, &count);
+    }
+    kinggen(board, movelist, &count);
 
     return count;
 }
