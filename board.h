@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-#define CHECKMATE   -200000
-#define INF         600000
+#define CHECKMATE   -30000
+#define INF         60000
 
 #define LSB(x)      __builtin_ctzll(x)
 #define POPCNT(x)   __builtin_popcountll(x)

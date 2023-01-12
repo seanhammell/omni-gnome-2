@@ -6,7 +6,7 @@
 #include "search.h"
 #include "eval.h"
 
-#define MAXQUIESCE  4
+#define MAXQUIESCE  5
 #define WINDOW      50
 
 /**
