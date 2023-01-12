@@ -6,8 +6,8 @@
 #include "search.h"
 #include "eval.h"
 
-#define MAXQUIESCE  5
-#define WINDOW      25
+#define MAXQUIESCE  4
+#define WINDOW      50
 
 /**
  * gettimems
@@ -225,8 +225,13 @@ void search_driver(Board *board, SearchInfo *sinfo)
             beta = INF;
         }
 
-        alpha = best - WINDOW;
-        beta = best + WINDOW;
+        if (depth > 3) {
+            alpha = best - WINDOW;
+            beta = best + WINDOW;
+        } else {
+            alpha = -INF;
+            beta = INF;
+        }
 
         checkstop(sinfo);
         if (sinfo->stop)
