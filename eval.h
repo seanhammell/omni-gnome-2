@@ -5,6 +5,6 @@
 
 extern Tables tables;
 
-int eval_heuristic(const Board *board);
+int eval_heuristic(Board *board);
 
 #endif  /* EVAL_H */

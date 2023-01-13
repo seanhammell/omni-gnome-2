@@ -1,5 +1,7 @@
 #include "eval.h"
 
+#define MAX(a, b)   (a > b ? a : b)
+
 static const int values[] = {0, 100, 320, 330, 500, 900};
 
 static const int advance_pst[] = {
@@ -22,6 +24,17 @@ static const int center_pst[] = {
     -20,   0,  10,  15,  15,  10,   0, -20,
     -30, -20,   0,   0,   0,   0, -20, -30,
     -40, -30, -20, -20, -20, -20, -30, -40,
+};
+
+static const int diagonal_pst[] = {
+    -20, -10, -10, -10, -10, -10, -10, -20,
+    -10,   0,   0,   0,   0,   0,   0, -10,
+    -10,   0,   5,  10,  10,   5,   0, -10,
+    -10,   5,   5,  10,  10,   5,   5, -10,
+    -10,   5,  10,  10,  10,  10,   5, -10,
+    -10,  10,  10,  15,  15,  10,  10, -10,
+    -10,  10,   0,   0,   0,   0,  10, -10,
+    -20, -10, -10, -10, -10, -10, -10, -20,
 };
 
 /**
@@ -151,6 +164,34 @@ int knight_mobility(const Board *board, U64 allies, U64 enemies)
 }
 
 /**
+ * bishop_mobility
+ *  score the mobility of each bishop
+ */
+int bishop_mobility(Board *board, U64 allies, U64 enemies)
+{
+    int i, mobility_value;
+    U64 m_diag, a_diag;
+
+    mobility_value = 0;
+    board->colorbb[BOTH] ^= board->piecebb[BISHOP] | board->piecebb[QUEEN];
+    while (allies) {
+        i = board_pullbit(&allies);
+        m_diag = board_slide045(board, i) & ~board->colorbb[board->side];
+        a_diag = board_slide135(board, i) & ~board->colorbb[board->side];
+        mobility_value += MAX(POPCNT(m_diag), POPCNT(a_diag));
+    }
+    while (enemies) {
+        i = board_pullbit(&enemies);
+        m_diag = board_slide045(board, i) & ~board->colorbb[board->side ^ 1];
+        a_diag = board_slide135(board, i) & ~board->colorbb[board->side ^ 1];
+        mobility_value -= MAX(POPCNT(m_diag), POPCNT(a_diag));
+    }
+    board->colorbb[BOTH] ^= board->piecebb[BISHOP] | board->piecebb[QUEEN];
+    mobility_value *= 8;
+    return mobility_value;
+}
+
+/**
  * pawns
  *  evaluate pawns in the current position
  */
@@ -188,10 +229,28 @@ int knights(const Board *board)
 }
 
 /**
+ * bishops
+ *  evaluate bishops in the current position
+ */
+int bishops(Board *board)
+{
+    int bishop_value;
+    U64 allies, enemies;
+
+    allies = board->piecebb[BISHOP] & board->colorbb[board->side];
+    enemies = board->piecebb[BISHOP] & board->colorbb[board->side ^ 1];
+
+    bishop_value = 0;
+    bishop_value += bishop_mobility(board, allies, enemies);
+    bishop_value += standing(board, BISHOP, diagonal_pst);
+    return bishop_value;
+}
+
+/**
  * eval_heuristic
  *  evaluate the current board position
  */
-int eval_heuristic(const Board *board)
+int eval_heuristic(Board *board)
 {
     int board_eval;
 
@@ -199,5 +258,6 @@ int eval_heuristic(const Board *board)
     board_eval += material(board);
     board_eval += pawns(board);
     board_eval += knights(board);
+    board_eval += bishops(board);
     return board_eval;
 }
