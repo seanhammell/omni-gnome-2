@@ -1,6 +1,6 @@
 #include "eval.h"
 
-static const int values[] = {0, 100, 300, 300, 500, 900};
+static const int values[] = {0, 100, 320, 330, 500, 900};
 
 static const int advance_pst[] = {
      0,   0,   0,   0,   0,   0,   0,   0,
@@ -11,6 +11,17 @@ static const int advance_pst[] = {
      0,   0,   0,   0,   0,   0,   0,   0,
      5,  10,  10, -20, -20,  10,  10,   5,
      0,   0,   0,   0,   0,   0,   0,   0,
+};
+
+static const int center_pst[] = {
+    -40, -30, -20, -20, -20, -20, -30, -40,
+    -30, -20,   0,   0,   0,   0, -20, -30,
+    -20,   0,  10,  15,  15,  10,   0, -20,
+    -20,   0,  15,  20,  20,  15,   0, -20,
+    -20,   0,  15,  20,  20,  15,   0, -20,
+    -20,   0,  10,  15,  15,  10,   0, -20,
+    -30, -20,   0,   0,   0,   0, -20, -30,
+    -40, -30, -20, -20, -20, -20, -30, -40,
 };
 
 /**
@@ -64,7 +75,7 @@ int standing(const Board *board, const int piece_type, const int *pst)
  * blocked
  *  return the difference of blocked ally pawns vs blocked enemy pawns
  */
-U64 blocked(const Board *board, U64 allies, U64 enemies)
+int blocked(const Board *board, U64 allies, U64 enemies)
 {
     int b_value;
     U64 allies_push, enemies_push;
@@ -79,6 +90,7 @@ U64 blocked(const Board *board, U64 allies, U64 enemies)
     b_value = 0;
     b_value -= POPCNT(allies) - POPCNT(allies_push);
     b_value += POPCNT(enemies) - POPCNT(enemies_push);
+    b_value *= 20;
     return b_value;
 }
 
@@ -86,7 +98,7 @@ U64 blocked(const Board *board, U64 allies, U64 enemies)
  * doubled_isolated
  *  return the difference of doubled or isolated ally pawns vs enemy pawns
  */
-U64 doubled_isolated(const Board *board, U64 allies, U64 enemies)
+int doubled_isolated(const Board *board, U64 allies, U64 enemies)
 {
     int i;
     int file_allies, file_enemies;
@@ -110,7 +122,32 @@ U64 doubled_isolated(const Board *board, U64 allies, U64 enemies)
         if (!(enemies & (left | right)))
             di_value += file_enemies;
     }
+    di_value *= 20;
     return di_value;
+}
+
+/**
+ * knight_mobility
+ *  score the mobility of each knight
+ */
+int knight_mobility(const Board *board, U64 allies, U64 enemies)
+{
+    int i, mobility_value;
+    U64 moves;
+
+    mobility_value = 0;
+    while (allies) {
+        i = board_pullbit(&allies);
+        moves = tables.knight_moves[i] & ~board->colorbb[board->side];
+        mobility_value += POPCNT(moves);
+    }
+    while (enemies) {
+        i = board_pullbit(&enemies);
+        moves = tables.knight_moves[i] & ~board->colorbb[board->side ^ 1];
+        mobility_value -= POPCNT(moves);
+    }
+    mobility_value *= 7;
+    return mobility_value;
 }
 
 /**
@@ -119,18 +156,35 @@ U64 doubled_isolated(const Board *board, U64 allies, U64 enemies)
  */
 int pawns(const Board *board)
 {
-    int i;
     int pawn_value;
     U64 allies, enemies;
 
     allies = board->piecebb[PAWN] & board->colorbb[board->side];
     enemies = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
 
-    pawn_value = blocked(board, allies, enemies);
+    pawn_value = 0;
+    pawn_value += blocked(board, allies, enemies);
     pawn_value += doubled_isolated(board, allies, enemies);
-    pawn_value *= 50;
     pawn_value += standing(board, PAWN, advance_pst);
     return pawn_value;
+}
+
+/**
+ * knights
+ *  evaluate knights in the current position
+ */
+int knights(const Board *board)
+{
+    int knight_value;
+    U64 allies, enemies;
+
+    allies = board->piecebb[KNIGHT] & board->colorbb[board->side];
+    enemies = board->piecebb[KNIGHT] & board->colorbb[board->side ^ 1];
+
+    knight_value = 0;
+    knight_value += knight_mobility(board, allies, enemies);
+    knight_value += standing(board, KNIGHT, center_pst);
+    return knight_value;
 }
 
 /**
@@ -144,5 +198,6 @@ int eval_heuristic(const Board *board)
     board_eval = 0;
     board_eval += material(board);
     board_eval += pawns(board);
+    board_eval += knights(board);
     return board_eval;
 }

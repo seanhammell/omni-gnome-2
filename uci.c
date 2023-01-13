@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "uci.h"
+// #include "eval.h"
 
 #define MAXBUFF 2500
 #define MAXDEPTH 8
@@ -27,6 +28,8 @@ void parsepos(Board *board, char *line)
 
     if ((cp = strstr(cp, "moves")))
         board_parsemoves(board, cp + 6);
+
+    // printf("eval: %d\n", eval_heuristic(board));
 }
 
 void parsego(Board *board, SearchInfo *sinfo, char *line)
