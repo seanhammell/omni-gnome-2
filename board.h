@@ -55,7 +55,7 @@ struct board {
     U64 targetmask;
 };
 
-static Tables tables;
+Tables tables;
 
 void board_inittables();
 void board_inithash();
