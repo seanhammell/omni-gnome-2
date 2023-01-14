@@ -14,6 +14,17 @@ static const int pawn_pst[] = {
       0,   0,   0,   0,   0,   0,   0,   0,
 };
 
+static const int outpost_squares[] = {
+    0, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+};
+
 static const int knight_pst[] = {
     -165, -90, -35, -50,  60, -100, -15, -105,
      -75, -40,  70,  35,  25,   60,   5,  -15,
@@ -184,26 +195,42 @@ int doubled_isolated_pawns(const Board *board, U64 allies, U64 enemies)
 }
 
 /**
- * knight_mobility
- *  calculate the weighted mobility of knights on the board
+ * knight_outpost
+ *  give a bonus for protected knights on outpost squares
  */
-int knight_mobility(const Board *board, U64 allies, U64 enemies)
+int knight_outpost(const Board *board, U64 allies, U64 enemies)
 {
-    int i, nm_value;
-    U64 moves;
+    int i, no_value;
+    int ally_flip, enemy_flip;
+    U64 ally_pawns, enemy_pawns;
+    U64 defenders, attackers;
 
-    nm_value = 0;
+    ally_pawns = board->piecebb[PAWN] & board->colorbb[board->side];
+    enemy_pawns = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
+
+    ally_flip = board->side == WHITE ? 56 : 0;
+    enemy_flip = board->side == WHITE ? 0 : 56;
+
+    no_value = 0;
     while (allies) {
-        i = board_pullbit(&allies);
-        moves = tables.knight_moves[i] & ~board->colorbb[board->side];
-        nm_value += POPCNT(moves);
+        i = board_pullbit(&allies) ^ ally_flip;
+        if (!outpost_squares[i])
+            break;
+        defenders = ally_pawns & tables.pawn_caps[board->side ^ 1][i];
+        attackers = enemy_pawns & tables.pawn_caps[board->side][i];
+        if (defenders && !attackers)
+            ++no_value;
     }
     while (enemies) {
-        i = board_pullbit(&enemies);
-        moves = tables.knight_moves[i] & ~board->colorbb[board->side ^ 1];
-        nm_value -= POPCNT(moves);
+        i = board_pullbit(&enemies) ^ enemy_flip;
+        if (!outpost_squares[i])
+            break;
+        defenders = enemy_pawns & tables.pawn_caps[board->side][i];
+        attackers = ally_pawns & tables.pawn_caps[board->side ^ 1][i];
+        if (defenders && !attackers)
+            --no_value;
     }
-    return nm_value * 10;
+    return no_value * 80;
 }
 
 #define MAX(a, b)   (a > b ? a : b)
@@ -309,7 +336,7 @@ int knight_score(const Board *board)
     enemies = board->piecebb[KNIGHT] & board->colorbb[board->side ^ 1];
 
     n_value = square_bonus(board, KNIGHT, knight_pst);
-    n_value += knight_mobility(board, allies, enemies);
+    n_value += knight_outpost(board, allies, enemies);
     return n_value;
 }
 
