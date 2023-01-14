@@ -1220,10 +1220,10 @@ int board_gameover(const Board *board, const int legal_moves)
  *  return the outcome of the game, assuming the game has reached a terminal
  *  state
  */
-int board_terminal(const Board *board, const int legal_moves, int depth)
+int board_terminal(const Board *board, const int legal_moves)
 {
     if (legal_moves == 0 && board->nchecks) {
-        return CHECKMATE - depth;
+        return CHECKMATE;
     }
     return 0;
 }

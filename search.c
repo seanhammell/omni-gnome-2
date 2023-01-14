@@ -6,6 +6,9 @@
 #include "search.h"
 #include "eval.h"
 
+#define WON     -CHECKMATE
+#define LOST    CHECKMATE
+
 /**
  * gettimems
  *  get the current time in milliseconds
@@ -173,7 +176,7 @@ int alphabeta(Board *board, SearchInfo *sinfo, int depth, int alpha, int beta)
     ++sinfo->nodes;
     const int count = board_generate(board, movelist);
     if (board_gameover(board, count))
-        return board_terminal(board, count, depth);
+        return board_terminal(board, count);
 
     for (i = 0; i < count; ++i) {
         board_make(board, movelist[i]);
@@ -220,6 +223,8 @@ void search_driver(Board *board, SearchInfo *sinfo)
         board_printmove(best_move);
         printf(" depth %d time %llu nodes %llu\n",
                depth, search_gettimems() - sinfo->tstart, sinfo->nodes);
+        if (alpha == WON || alpha == LOST)
+            break;
     }
     printf("bestmove ");
     board_printmove(best_move);

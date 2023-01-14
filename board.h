@@ -79,6 +79,6 @@ void board_make(Board *board, Move move);
 void board_unmake(Board *board, Move move);
 
 int board_gameover(const Board *board, const int legal_moves);
-int board_terminal(const Board *board, const int legal_moves, int depth);
+int board_terminal(const Board *board, const int legal_moves);
 
 #endif  /* BOARD_H */
