@@ -60,32 +60,32 @@ static const int king_safety_pst[] = {
 };
 
 /**
- * material
- *  return the material score for the given piece type
+ * material_value
+ *  calculate the material difference between sides
  */
-int material(const Board *board)
+int material_value(const Board *board)
 {
-    int i, j, matval;
+    int i, m_value;
     U64 allybb, enemybb;
 
-    matval = 0;
+    m_value = 0;
     for (i = 1; i < 7; ++i) {
         allybb = board->piecebb[i] & board->colorbb[board->side];
         enemybb = board->piecebb[i] & board->colorbb[board->side ^ 1];
-        matval += POPCNT(allybb) * values[i];
-        matval -= POPCNT(enemybb) * values[i];
+        m_value += POPCNT(allybb) * values[i];
+        m_value -= POPCNT(enemybb) * values[i];
     }
-    return matval;
+    return m_value;
 }
 
 /**
- * standing
- *  score the pieces based on the square they are standing on
+ * square_bonus
+ *  give bonuses to pieces depending on which square they are standing on
  */
-int standing(const Board *board, const int piece_type, const int *pst)
+int square_bonus(const Board *board, const int piece_type, const int *pst)
 {
     int i, ally_flip, enemy_flip;
-    int standval;
+    int sq_bonus;
     U64 allies, enemies;
 
     allies = board->piecebb[piece_type] & board->colorbb[board->side];
@@ -94,23 +94,23 @@ int standing(const Board *board, const int piece_type, const int *pst)
     ally_flip = board->side == WHITE ? 56 : 0;
     enemy_flip = board->side == WHITE ? 0 : 56;
 
-    standval = 0;
+    sq_bonus = 0;
     while (allies) {
         i = board_pullbit(&allies) ^ ally_flip;
-        standval += pst[i];
+        sq_bonus += pst[i];
     }
     while (enemies) {
         i = board_pullbit(&enemies) ^ enemy_flip;
-        standval -= pst[i];
+        sq_bonus -= pst[i];
     }
-    return standval;
+    return sq_bonus;
 }
 
 /**
- * blocked
- *  return the difference of blocked ally pawns vs blocked enemy pawns
+ * blocked_pawns
+ *  give penalties to each side for blocked pawns
  */
-int blocked(const Board *board, U64 allies, U64 enemies)
+int blocked_pawns(const Board *board, U64 allies, U64 enemies)
 {
     int b_value;
     U64 allies_push, enemies_push;
@@ -122,18 +122,16 @@ int blocked(const Board *board, U64 allies, U64 enemies)
         allies_push = (allies >> 8) & ~board->colorbb[BOTH];
         enemies_push = (enemies << 8) & ~board->colorbb[BOTH];
     }
-    b_value = 0;
-    b_value -= POPCNT(allies) - POPCNT(allies_push);
+    b_value = POPCNT(allies) - POPCNT(allies_push);
     b_value += POPCNT(enemies) - POPCNT(enemies_push);
-    b_value *= 20;
-    return b_value;
+    return b_value * 20;
 }
 
 /**
- * doubled_isolated
- *  return the difference of doubled or isolated ally pawns vs enemy pawns
+ * doubled_isolated_pawns
+ *  give penalties to each side for doubled or isolated pawns
  */
-int doubled_isolated(const Board *board, U64 allies, U64 enemies)
+int doubled_isolated_pawns(const Board *board, U64 allies, U64 enemies)
 {
     int i;
     int file_allies, file_enemies;
@@ -157,181 +155,179 @@ int doubled_isolated(const Board *board, U64 allies, U64 enemies)
         if (!(enemies & (left | right)))
             di_value += file_enemies;
     }
-    di_value *= 20;
-    return di_value;
+    return di_value * 20;
 }
 
 /**
  * knight_mobility
- *  score the mobility of each knight
+ *  calculate the weighted mobility of knights on the board
  */
 int knight_mobility(const Board *board, U64 allies, U64 enemies)
 {
-    int i, mobility_value;
+    int i, nm_value;
     U64 moves;
 
-    mobility_value = 0;
+    nm_value = 0;
     while (allies) {
         i = board_pullbit(&allies);
         moves = tables.knight_moves[i] & ~board->colorbb[board->side];
-        mobility_value += POPCNT(moves);
+        nm_value += POPCNT(moves);
     }
     while (enemies) {
         i = board_pullbit(&enemies);
         moves = tables.knight_moves[i] & ~board->colorbb[board->side ^ 1];
-        mobility_value -= POPCNT(moves);
+        nm_value -= POPCNT(moves);
     }
-    mobility_value *= 5;
-    return mobility_value;
+    return nm_value * 5;
 }
 
 /**
- * bishop_mobility
- *  score the mobility of each bishop
+ * long_diagonal
+ *  give a bonus for bishops on long, open diagonals
  */
-int bishop_mobility(Board *board, U64 allies, U64 enemies)
+int long_diagonal(Board *board, U64 allies, U64 enemies)
 {
-    int i, mobility_value;
+    int i, ld_value;
     U64 m_diag, a_diag;
 
-    mobility_value = 0;
+    ld_value = 0;
+    board->colorbb[BOTH] ^= board->piecebb[PAWN];
     while (allies) {
         i = board_pullbit(&allies);
         m_diag = board_slide045(board, i) & ~board->colorbb[board->side];
         a_diag = board_slide135(board, i) & ~board->colorbb[board->side];
-        mobility_value += MAX(POPCNT(m_diag), POPCNT(a_diag));
+        ld_value += MAX(POPCNT(m_diag), POPCNT(a_diag));
     }
     while (enemies) {
         i = board_pullbit(&enemies);
         m_diag = board_slide045(board, i) & ~board->colorbb[board->side ^ 1];
         a_diag = board_slide135(board, i) & ~board->colorbb[board->side ^ 1];
-        mobility_value -= MAX(POPCNT(m_diag), POPCNT(a_diag));
+        ld_value -= MAX(POPCNT(m_diag), POPCNT(a_diag));
     }
-    mobility_value *= 10;
-    return mobility_value;
+    board->colorbb[BOTH] ^= board->piecebb[PAWN];
+    return ld_value * 10;
 }
 
 /**
- * rook_mobility
- *  score the mobility of each rook
+ * open_file
+ *  give a bonus for rook mobility with a preference towards open files
  */
-int rook_mobility(Board *board, U64 allies, U64 enemies)
+int open_file(Board *board, U64 allies, U64 enemies)
 {
-    int i, mobility_value;
+    int i, of_value;
     U64 horiz, vert;
 
-    mobility_value = 0;
+    of_value = 0;
+    board->colorbb[BOTH] ^= board->piecebb[PAWN];
     while (allies) {
         i = board_pullbit(&allies);
         horiz = board_slide000(board, i) & ~board->colorbb[board->side];
         vert = board_slide090(board, i) & ~board->colorbb[board->side];
-        mobility_value += POPCNT(horiz) * 2 + POPCNT(vert) * 8;
+        of_value += POPCNT(horiz) * 2 + POPCNT(vert) * 8;
     }
     while (enemies) {
         i = board_pullbit(&enemies);
         horiz = board_slide000(board, i) & ~board->colorbb[board->side ^ 1];
         vert = board_slide090(board, i) & ~board->colorbb[board->side ^ 1];
-        mobility_value -= POPCNT(horiz) * 2 + POPCNT(vert) * 8;
+        of_value -= POPCNT(horiz) * 2 + POPCNT(vert) * 8;
     }
-    return mobility_value;
+    board->colorbb[BOTH] ^= board->piecebb[PAWN];
+    return of_value;
 }
 
 /**
- * pawns
- *  evaluate pawns in the current position
+ * pawn_score
+ *  evaluate pawns based on standing and structure
  */
-int pawns(const Board *board)
+int pawn_score(const Board *board)
 {
-    int pawn_value;
+    int p_value;
     U64 allies, enemies;
 
     allies = board->piecebb[PAWN] & board->colorbb[board->side];
     enemies = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
 
-    pawn_value = 0;
-    pawn_value += blocked(board, allies, enemies);
-    pawn_value += doubled_isolated(board, allies, enemies);
-    pawn_value += standing(board, PAWN, advance_pst);
-    return pawn_value;
+    p_value = square_bonus(board, PAWN, advance_pst);
+    p_value += blocked_pawns(board, allies, enemies);
+    p_value += doubled_isolated_pawns(board, allies, enemies);
+    return p_value;
 }
 
 /**
- * knights
- *  evaluate knights in the current position
+ * knight_score
+ *  evaluate knights based on standing and mobility
  */
-int knights(const Board *board)
+int knight_score(const Board *board)
 {
-    int knight_value;
+    int n_value;
     U64 allies, enemies;
 
     allies = board->piecebb[KNIGHT] & board->colorbb[board->side];
     enemies = board->piecebb[KNIGHT] & board->colorbb[board->side ^ 1];
 
-    knight_value = 0;
-    knight_value += knight_mobility(board, allies, enemies);
-    knight_value += standing(board, KNIGHT, center_pst);
-    return knight_value;
+    n_value = square_bonus(board, KNIGHT, center_pst);
+    n_value += knight_mobility(board, allies, enemies);
+    return n_value;
 }
 
 /**
- * bishops
- *  evaluate bishops in the current position
+ * bishop_score
+ *  evaluate bishops based on standing and diagonal control
  */
-int bishops(Board *board)
+int bishop_score(Board *board)
 {
-    int bishop_value;
+    int b_value;
     U64 allies, enemies;
 
     allies = board->piecebb[BISHOP] & board->colorbb[board->side];
     enemies = board->piecebb[BISHOP] & board->colorbb[board->side ^ 1];
 
     if (POPCNT(allies) > 1)
-        bishop_value += 30;
+        b_value += 30;
     if (POPCNT(enemies) > 1)
-        bishop_value -= 30;
+        b_value -= 30;
 
-    bishop_value = 0;
-    bishop_value += bishop_mobility(board, allies, enemies);
-    bishop_value += standing(board, BISHOP, diagonal_pst);
-    return bishop_value;
+    b_value = square_bonus(board, BISHOP, diagonal_pst);
+    b_value += long_diagonal(board, allies, enemies);
+    return b_value;
 }
 
 /**
- * rooks
- *  evaluate rooks in the current position
+ * rook_score
+ *  evaluate rooks based on standing and file control
  */
-int rooks(Board *board)
+int rook_score(Board *board)
 {
-    int rook_value;
+    int r_value;
     U64 allies, enemies;
 
     allies = board->piecebb[ROOK] & board->colorbb[board->side];
     enemies = board->piecebb[ROOK] & board->colorbb[board->side ^ 1];
 
-    rook_value = 0;
-    rook_value += rook_mobility(board, allies, enemies);
-    rook_value += standing(board, ROOK, back_rank_pst);
-    return rook_value;
+    r_value = square_bonus(board, ROOK, back_rank_pst);
+    r_value += open_file(board, allies, enemies);
+    return r_value;
 }
 
 /**
- * kings
- *  evaluate kins in the current position
+ * king_score
+ *  evaluate kings based on safety or centralization for the middle and end
+ *  game respectively
  */
-int kings(Board *board)
+int king_score(Board *board)
 {
-    int king_value;
+    int k_value;
     U64 allies, enemies;
 
     allies = board->piecebb[KING] & board->colorbb[board->side];
     enemies = board->piecebb[KING] & board->colorbb[board->side ^ 1];
 
-    king_value = 0;
+    k_value = 0;
     if (board->piecebb[QUEEN])
-        king_value += standing(board, KING, king_safety_pst);
+        k_value += square_bonus(board, KING, king_safety_pst);
     else
-        king_value += standing(board, KING, center_pst);
-    return king_value;
+        k_value += square_bonus(board, KING, center_pst);
+    return k_value;
 }
 
 /**
@@ -340,14 +336,13 @@ int kings(Board *board)
  */
 int eval_heuristic(Board *board)
 {
-    int board_eval;
+    int eval;
 
-    board_eval = 0;
-    board_eval += material(board);
-    board_eval += pawns(board);
-    board_eval += knights(board);
-    board_eval += bishops(board);
-    board_eval += rooks(board);
-    board_eval += kings(board);
-    return board_eval;
+    eval = material_value(board);
+    eval += pawn_score(board);
+    eval += knight_score(board);
+    eval += bishop_score(board);
+    eval += rook_score(board);
+    eval += king_score(board);
+    return eval;
 }
