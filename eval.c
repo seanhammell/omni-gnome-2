@@ -1,7 +1,7 @@
 #include "eval.h"
 
 static const int values[] = {0, 90, 320, 330, 500, 975};
-static const int gamephase_inc[] = {0, 1, 1, 2, 4, 0};
+static const int gamephase_inc[] = {0, 0, 1, 1, 2, 4, 0};
 
 static const int pawn_pst[] = {
       0,   0,   0,   0,   0,   0,   0,   0,
@@ -149,7 +149,7 @@ int blocked_pawns(const Board *board, U64 allies, U64 enemies)
     }
     b_value = POPCNT(allies) - POPCNT(allies_push);
     b_value += POPCNT(enemies) - POPCNT(enemies_push);
-    return b_value * 20;
+    return b_value * 40;
 }
 
 /**
@@ -180,7 +180,7 @@ int doubled_isolated_pawns(const Board *board, U64 allies, U64 enemies)
         if (!(enemies & (left | right)))
             di_value += file_enemies;
     }
-    return di_value * 20;
+    return di_value * 40;
 }
 
 /**
@@ -203,7 +203,7 @@ int knight_mobility(const Board *board, U64 allies, U64 enemies)
         moves = tables.knight_moves[i] & ~board->colorbb[board->side ^ 1];
         nm_value -= POPCNT(moves);
     }
-    return nm_value * 5;
+    return nm_value * 10;
 }
 
 #define MAX(a, b)   (a > b ? a : b)
@@ -217,7 +217,6 @@ int long_diagonal(Board *board, U64 allies, U64 enemies)
     U64 m_diag, a_diag;
 
     ld_value = 0;
-    board->colorbb[BOTH] ^= board->piecebb[PAWN];
     while (allies) {
         i = board_pullbit(&allies);
         m_diag = board_slide045(board, i) & ~board->colorbb[board->side];
@@ -230,8 +229,7 @@ int long_diagonal(Board *board, U64 allies, U64 enemies)
         a_diag = board_slide135(board, i) & ~board->colorbb[board->side ^ 1];
         ld_value -= MAX(POPCNT(m_diag), POPCNT(a_diag));
     }
-    board->colorbb[BOTH] ^= board->piecebb[PAWN];
-    return ld_value * 10;
+    return ld_value * 20;
 }
 
 /**
@@ -244,20 +242,18 @@ int open_file(Board *board, U64 allies, U64 enemies)
     U64 horiz, vert;
 
     of_value = 0;
-    board->colorbb[BOTH] ^= board->piecebb[PAWN];
     while (allies) {
         i = board_pullbit(&allies);
         horiz = board_slide000(board, i) & ~board->colorbb[board->side];
         vert = board_slide090(board, i) & ~board->colorbb[board->side];
-        of_value += POPCNT(horiz) * 2 + POPCNT(vert) * 8;
+        of_value += POPCNT(horiz) * 4 + POPCNT(vert) * 16;
     }
     while (enemies) {
         i = board_pullbit(&enemies);
         horiz = board_slide000(board, i) & ~board->colorbb[board->side ^ 1];
         vert = board_slide090(board, i) & ~board->colorbb[board->side ^ 1];
-        of_value -= POPCNT(horiz) * 2 + POPCNT(vert) * 8;
+        of_value -= POPCNT(horiz) * 4 + POPCNT(vert) * 16;
     }
-    board->colorbb[BOTH] ^= board->piecebb[PAWN];
     return of_value;
 }
 
@@ -307,11 +303,6 @@ int bishop_score(Board *board)
 
     allies = board->piecebb[BISHOP] & board->colorbb[board->side];
     enemies = board->piecebb[BISHOP] & board->colorbb[board->side ^ 1];
-
-    if (POPCNT(allies) > 1)
-        b_value += 30;
-    if (POPCNT(enemies) > 1)
-        b_value -= 30;
 
     b_value = square_bonus(board, BISHOP, bishop_pst);
     b_value += long_diagonal(board, allies, enemies);

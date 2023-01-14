@@ -3,12 +3,11 @@
 #include <string.h>
 
 #include "uci.h"
-// #include "eval.h"
 
 #define MAXBUFF 2500
 #define MAXDEPTH 20
 #define SFEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-#define ID "id name Omni-Gnome 2 TEST\nid author Sean Hammell\nuciok\n"
+#define ID "id name Omni-Gnome 2\nid author Sean Hammell\nuciok\n"
 
 /**
  * parsepos
@@ -28,8 +27,6 @@ void parsepos(Board *board, char *line)
 
     if ((cp = strstr(cp, "moves")))
         board_parsemoves(board, cp + 6);
-
-    // printf("eval: %d\n", eval_heuristic(board));
 }
 
 void parsego(Board *board, SearchInfo *sinfo, char *line)
