@@ -6,7 +6,7 @@
 // #include "eval.h"
 
 #define MAXBUFF 2500
-#define MAXDEPTH 8
+#define MAXDEPTH 20
 #define SFEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 #define ID "id name Omni-Gnome 2 TEST\nid author Sean Hammell\nuciok\n"
 

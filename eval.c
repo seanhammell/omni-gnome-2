@@ -37,6 +37,17 @@ static const int diagonal_pst[] = {
     -20, -10, -10, -10, -10, -10, -10, -20,
 };
 
+static const int back_rank_pst[] = {
+     0,  10,  10,  10,  10,  10,  10,   0,
+    10,  20,  20,  20,  20,  20,  20,  10,
+     0,  10,  10,  10,  10,  10,  10,   0,
+     0,   0,   0,   0,   0,   0,   0,   0,
+     0,   0,   0,   0,   0,   0,   0,   0,
+     0,   0,   0,   0,   0,   0,   0,   0,
+     0,   0,   0,   0,   0,   0,   0,   0,
+     0,   0,   0,   0,   0,   0,   0,   0,
+};
+
 /**
  * material
  *  return the material score for the given piece type
@@ -159,7 +170,7 @@ int knight_mobility(const Board *board, U64 allies, U64 enemies)
         moves = tables.knight_moves[i] & ~board->colorbb[board->side ^ 1];
         mobility_value -= POPCNT(moves);
     }
-    mobility_value *= 7;
+    mobility_value *= 5;
     return mobility_value;
 }
 
@@ -173,7 +184,6 @@ int bishop_mobility(Board *board, U64 allies, U64 enemies)
     U64 m_diag, a_diag;
 
     mobility_value = 0;
-    board->colorbb[BOTH] ^= board->piecebb[BISHOP] | board->piecebb[QUEEN];
     while (allies) {
         i = board_pullbit(&allies);
         m_diag = board_slide045(board, i) & ~board->colorbb[board->side];
@@ -186,8 +196,32 @@ int bishop_mobility(Board *board, U64 allies, U64 enemies)
         a_diag = board_slide135(board, i) & ~board->colorbb[board->side ^ 1];
         mobility_value -= MAX(POPCNT(m_diag), POPCNT(a_diag));
     }
-    board->colorbb[BOTH] ^= board->piecebb[BISHOP] | board->piecebb[QUEEN];
-    mobility_value *= 8;
+    mobility_value *= 10;
+    return mobility_value;
+}
+
+/**
+ * rook_mobility
+ *  score the mobility of each rook
+ */
+int rook_mobility(Board *board, U64 allies, U64 enemies)
+{
+    int i, mobility_value;
+    U64 horiz, vert;
+
+    mobility_value = 0;
+    while (allies) {
+        i = board_pullbit(&allies);
+        horiz = board_slide000(board, i) & ~board->colorbb[board->side];
+        vert = board_slide090(board, i) & ~board->colorbb[board->side];
+        mobility_value += POPCNT(horiz) * 2 + POPCNT(vert) * 8;
+    }
+    while (enemies) {
+        i = board_pullbit(&enemies);
+        horiz = board_slide000(board, i) & ~board->colorbb[board->side ^ 1];
+        vert = board_slide090(board, i) & ~board->colorbb[board->side ^ 1];
+        mobility_value -= POPCNT(horiz) * 2 + POPCNT(vert) * 8;
+    }
     return mobility_value;
 }
 
@@ -240,10 +274,32 @@ int bishops(Board *board)
     allies = board->piecebb[BISHOP] & board->colorbb[board->side];
     enemies = board->piecebb[BISHOP] & board->colorbb[board->side ^ 1];
 
+    if (POPCNT(allies) > 1)
+        bishop_value += 30;
+    if (POPCNT(enemies) > 1)
+        bishop_value -= 30;
+
     bishop_value = 0;
     bishop_value += bishop_mobility(board, allies, enemies);
     bishop_value += standing(board, BISHOP, diagonal_pst);
     return bishop_value;
+}
+
+/**
+ * evaluate rooks in the current position
+ */
+int rooks(Board *board)
+{
+    int rook_value;
+    U64 allies, enemies;
+
+    allies = board->piecebb[ROOK] & board->colorbb[board->side];
+    enemies = board->piecebb[ROOK] & board->colorbb[board->side ^ 1];
+
+    rook_value = 0;
+    rook_value += rook_mobility(board, allies, enemies);
+    rook_value += standing(board, ROOK, back_rank_pst);
+    return rook_value;
 }
 
 /**
@@ -259,5 +315,6 @@ int eval_heuristic(Board *board)
     board_eval += pawns(board);
     board_eval += knights(board);
     board_eval += bishops(board);
+    board_eval += rooks(board);
     return board_eval;
 }
