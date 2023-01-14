@@ -48,6 +48,17 @@ static const int back_rank_pst[] = {
      0,   0,   0,   0,   0,   0,   0,   0,
 };
 
+static const int king_safety_pst[] = {
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -20, -30, -30, -40, -40, -30, -30, -20,
+    -10, -20, -20, -20, -20, -20, -20, -10,
+     20,  20,   0,   0,   0,   0,  20,  20,
+     20,  30,  10,   0,   0,  10,  30,  20,
+};
+
 /**
  * material
  *  return the material score for the given piece type
@@ -286,7 +297,8 @@ int bishops(Board *board)
 }
 
 /**
- * evaluate rooks in the current position
+ * rooks
+ *  evaluate rooks in the current position
  */
 int rooks(Board *board)
 {
@@ -303,6 +315,26 @@ int rooks(Board *board)
 }
 
 /**
+ * kings
+ *  evaluate kins in the current position
+ */
+int kings(Board *board)
+{
+    int king_value;
+    U64 allies, enemies;
+
+    allies = board->piecebb[KING] & board->colorbb[board->side];
+    enemies = board->piecebb[KING] & board->colorbb[board->side ^ 1];
+
+    king_value = 0;
+    if (board->piecebb[QUEEN])
+        king_value += standing(board, KING, king_safety_pst);
+    else
+        king_value += standing(board, KING, center_pst);
+    return king_value;
+}
+
+/**
  * eval_heuristic
  *  evaluate the current board position
  */
@@ -316,5 +348,6 @@ int eval_heuristic(Board *board)
     board_eval += knights(board);
     board_eval += bishops(board);
     board_eval += rooks(board);
+    board_eval += kings(board);
     return board_eval;
 }
