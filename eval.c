@@ -258,6 +258,29 @@ int open_file(Board *board, U64 allies, U64 enemies)
 }
 
 /**
+ * king_aggression
+ *  give a bonus for an aggressive king as the game progresses
+ */
+int king_aggression(const Board *board, U64 allies, U64 enemies)
+{
+    int i, ka_value;
+    U64 moves;
+
+    ka_value = 0;
+    while (allies) {
+        i = board_pullbit(&allies);
+        moves = tables.king_moves[i] & board->colorbb[board->side ^ 1];
+        ka_value += POPCNT(moves);
+    }
+    while (enemies) {
+        i = board_pullbit(&enemies);
+        moves = tables.king_moves[i] & board->colorbb[board->side];
+        ka_value -= POPCNT(moves);
+    }
+    return ka_value * 100;
+}
+
+/**
  * pawn_score
  *  evaluate pawns based on standing and structure
  */
@@ -358,6 +381,7 @@ int king_score(Board *board)
 
     k_mg_value = square_bonus(board, KING, king_mg_pst);
     k_eg_value = square_bonus(board, KING, king_eg_pst);
+    k_eg_value += king_aggression(board, allies, enemies);
     mg_phase = gamephase > 24 ? 24 : gamephase;
     eg_phase = 24 - mg_phase;
     return (k_mg_value * mg_phase + k_eg_value * eg_phase) / 24;
