@@ -234,27 +234,25 @@ int long_diagonal(Board *board, U64 allies, U64 enemies)
 
 /**
  * open_file
- *  give a bonus for rook mobility with a preference towards open files
+ *  give a bonus for rooks on open files
  */
 int open_file(Board *board, U64 allies, U64 enemies)
 {
     int i, of_value;
-    U64 horiz, vert;
+    U64 vert;
 
     of_value = 0;
     while (allies) {
         i = board_pullbit(&allies);
-        horiz = board_slide000(board, i) & ~board->colorbb[board->side];
         vert = board_slide090(board, i) & ~board->colorbb[board->side];
-        of_value += POPCNT(horiz) * 4 + POPCNT(vert) * 16;
+        of_value += POPCNT(vert);
     }
     while (enemies) {
         i = board_pullbit(&enemies);
-        horiz = board_slide000(board, i) & ~board->colorbb[board->side ^ 1];
         vert = board_slide090(board, i) & ~board->colorbb[board->side ^ 1];
-        of_value -= POPCNT(horiz) * 4 + POPCNT(vert) * 16;
+        of_value -= POPCNT(vert);
     }
-    return of_value;
+    return of_value * 20;
 }
 
 /**
