@@ -1,17 +1,17 @@
 #include "eval.h"
 
-static const int values[] = {0, 100, 320, 330, 500, 975};
+static const int values[] = {0, 100, 325, 325, 500, 975};
 static const int gamephase_inc[] = {0, 0, 1, 1, 2, 4, 0};
 
 static const int pawn_pst[] = {
-      0,   0,   0,   0,   0,   0,   0,   0,
-     40,  60,  60,  80,  80,  60,  60,  40,
-    -10,  20,  30,  40,  40,  30,  20, -10,
-    -20,  15,  10,  20,  20,  10,  15, -20,
-    -25,   0,   0,  15,  15,   0,  10, -25,
-    -10,   0,   0,   0,   0,   0,  30, -10,
-      0,   0,   0, -20, -20,   0,   0,   0,
-      0,   0,   0,   0,   0,   0,   0,   0,
+     0,  0,  0,   0,   0,  0,  0,  0,
+    30, 30, 30,  30,  30, 30, 30, 30,
+    10, 10, 15,  20,  20, 15, 10, 10,
+     5,  5, 10,  15,  15, 10,  5,  5,
+     0,  0,  0,  10,  10,  0,  0,  0,
+     0,  0,  0,   0,   0,  0,  0,  0,
+     5,  5,  5, -10, -10,  5,  5,  5,
+     0,  0,  0,   0,   0,  0,  0,  0,
 };
 
 static const int outpost_squares[] = {
@@ -26,69 +26,69 @@ static const int outpost_squares[] = {
 };
 
 static const int knight_pst[] = {
-    -135, -50, -70,   0,   0, -70, -50, -135,
-     -45, -15,  65,  30,  30,  65, -15,  -45,
-       0,  70,  75,  75,  75,  75,  70,    0,
-       0,  20,  45,  45,  45,  45,  20,    0,
-     -10,  10,  20,  20,  20,  20,  10,  -10,
-     -15,   0,  15,  15,  15,  15,   0,  -15,
-     -25, -35,   0,   0,   0,   0, -35,  -25,
-     -65, -20, -45, -25, -25, -45, -20,  -65,
+    -25, -20, -15, -15, -15, -15, -20,  -25,
+    -20, -10,   0,   0,   0,   0, -10,  -15,
+    -15,   0,  20,  30,  30,  20,   0,  -15,
+    -15,   0,  30,  40,  40,  30,   0,  -15,
+    -15,   0,  30,  40,  40,  30,   0,  -15,
+    -15,   0,  20,  30,  30,  20,   0,  -15,
+    -20, -10,   0,   5,   5,   0, -10,  -20,
+    -25, -20, -15, -15, -15, -15, -20,  -25,
 };
 
 static const int bishop_pst[] = {
-    -20,   5, -60, -30, -30, -60,   5, -20,
-    -35,  15,  20,   5,   5,  20,  15, -35,
-    -10,  30,  45,  35,  35,  45,  30, -10,
-      0,   5,  30,  45,  45,  30,   5,   0,
-      0,  10,  15,  30,  30,  15,  10,   0,
-      5,  15,  20,  15,  15,  20,  15,   5,
-      0,  25,  15,   0,   0,  15,  25,   0,
-    -30, -20, -15, -20, -20, -15, -20, -30,
+    -20, -10, -10, -10, -10, -10, -10, -20,
+    -10,   0,   0,   0,   0,   0,   0, -10,
+    -10,   0,   5,  10,  10,   5,   0, -10,
+    -10,   0,   5,  10,  10,   5,   0, -10,
+    -10,   0,  10,  10,  10,  10,   0, -10,
+    -10,  10,  10,  10,  10,  10,  10, -10,
+    -10,   5,   0,   0,   0,   0,   5, -10,
+    -20, -10, -10, -10, -10, -10, -10, -20,
 };
 
 static const int rook_pst[] = {
-     35,  40,  20, 60, 60, 20,  40,  35,
-     35,  30,  65, 70, 70, 65,  30,  35,
-      5,  40,  40, 25, 25, 40,  40,   5,
-    -20,  -5,   0, 25, 25, 35,  -5, -20,
-    -30, -10,   0,  5,  5, -5, -10, -30,
-    -40, -20, -10, -5, -5,  0, -20, -40,
-    -60, -15, -10, -5, -5, 10, -15, -60,
-    -25, -25,   0, 15, 15,  0, -25, -25,
+     0,  0,  0,  0,  0,  0,  0,  0,
+     5, 10, 10, 10, 10, 10, 10,  5,
+     5,  0,  0,  0,  0,  0,  0,  5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+     0,  0,  0,  5,  5,  0,  0,  0,
 };
 
 static const int queen_pst[] = {
-      0,  20,  40,  35,  35,  40,  20,   0,
-     15,   0,  25,  -5,  -5,  25,   0,  15,
-     20,  15,  30,  20,  20,  30,  15,  20,
-    -15, -10,   0, -10, -10,   0, -10, -15,
-     -5, -10, -10,  -5,  -5, -10, -10,  -5,
-     -5,   5,  -5,   0,   0,  -5,   5,  -5,
-    -15, -10,  15,   5,   5,  15, -10, -15,
-    -25, -30, -15,   0,   0, -15, -30, -25,
+    -20, -10, -10, -5, -5, -10, -10, -20,
+      0,  10,  10, 10, 10,  10,  10,   0,
+    -10,   0,   5,  5,  5,   5,   0, -10,
+     -5,   0,   5,  5,  5,   5,   0,  -5,
+     -5,   0,   5,  5,  5,   5,   0,  -5,
+    -10,   5,   5,  5,  5,   5,   0, -10,
+    -10,   0,   5,  0,  0,   0,   0, -10,
+    -20, -10, -10, -5, -5, -10, -10, -20,
 };
 
 static const int king_mg_pst[] = {
-    -65,  20,   5, -25, -55, -25,   5,  20,
-     30, -15, -30,  -5, -10,  -5, -30, -35,
-    -10,   0,  10,  -5, -20,  -5,  10,   0,
-    -15, -30, -15, -25, -30, -25, -15, -30,
-    -50, -25, -30, -40, -45, -40, -30, -25,
-    -15, -20, -20, -40, -45, -40, -20, -20,
-      0,   5,   0, -45, -45, -45,   0,   5,
-    -15,  25,  20, -45,  10, -45,  20,  25,
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -30, -40, -40, -50, -50, -40, -40, -30,
+    -20, -30, -30, -40, -40, -30, -30, -20,
+    -10, -20, -20, -20, -20, -20, -20, -10,
+     10,  10,   0,   0,   0,   0,  10,  10,
+     10,  30,   5,   0,   0,   5,  30,  10,
 };
 
 static const int king_eg_pst[] = {
-    -45, -20,   0, -20, -20,   0, -20, -45,
-      0,  30,  30,  15,  15,  30,  30,   0,
-     10,  35,  35,  20,  20,  35,  35,  10,
-      5,  20,  20,  25,  25,  20,  20,   5,
-    -15,   0,  20,  25,  25,  20,   0, -15,
-    -25,   0,  15,  20,  20,  15,   0, -15,
-    -20, -10,   5,  15,  15,   5, -10, -20,
-    -50, -30, -15, -20, -20, -15, -20, -50,
+    -25, -20, -15, -15, -15, -15, -20, -25,
+    -20, -10,   0,   0,   0,   0, -10, -15,
+    -15,   0,  10,  15,  15,  10,   0, -15,
+    -15,   0,  15,  20,  20,  15,   0, -15,
+    -15,   0,  15,  20,  20,  15,   0, -15,
+    -15,   0,  10,  15,  15,  10,   0, -15,
+    -20, -10,   0,   5,   5,   0, -10, -20,
+    -25, -20, -15, -15, -15, -15, -20, -25,
 };
 
 static int gamephase;
@@ -160,7 +160,7 @@ int blocked_pawns(const Board *board, U64 allies, U64 enemies)
     }
     b_value = POPCNT(allies) - POPCNT(allies_push);
     b_value += POPCNT(enemies) - POPCNT(enemies_push);
-    return b_value * 40;
+    return b_value * 10;
 }
 
 /**
@@ -191,7 +191,7 @@ int doubled_isolated_pawns(const Board *board, U64 allies, U64 enemies)
         if (!(enemies & (left | right)))
             di_value += file_enemies;
     }
-    return di_value * 40;
+    return di_value * 10;
 }
 
 /**
@@ -213,8 +213,8 @@ int knight_outpost(const Board *board, U64 allies, U64 enemies)
 
     no_value = 0;
     while (allies) {
-        i = board_pullbit(&allies) ^ ally_flip;
-        if (!outpost_squares[i])
+        i = board_pullbit(&allies);
+        if (!outpost_squares[i ^ ally_flip])
             break;
         defenders = ally_pawns & tables.pawn_caps[board->side ^ 1][i];
         attackers = enemy_pawns & tables.pawn_caps[board->side][i];
@@ -222,15 +222,15 @@ int knight_outpost(const Board *board, U64 allies, U64 enemies)
             ++no_value;
     }
     while (enemies) {
-        i = board_pullbit(&enemies) ^ enemy_flip;
-        if (!outpost_squares[i])
+        i = board_pullbit(&enemies);
+        if (!outpost_squares[i ^ enemy_flip])
             break;
         defenders = enemy_pawns & tables.pawn_caps[board->side][i];
         attackers = ally_pawns & tables.pawn_caps[board->side ^ 1][i];
         if (defenders && !attackers)
             --no_value;
     }
-    return no_value * 80;
+    return no_value * 10;
 }
 
 #define MAX(a, b)   (a > b ? a : b)
@@ -256,7 +256,7 @@ int long_diagonal(Board *board, U64 allies, U64 enemies)
         a_diag = board_slide135(board, i) & ~board->colorbb[board->side ^ 1];
         ld_value -= MAX(POPCNT(m_diag), POPCNT(a_diag));
     }
-    return ld_value * 20;
+    return ld_value * 10;
 }
 
 /**
@@ -281,7 +281,7 @@ int open_file(Board *board, U64 allies, U64 enemies)
         of_value -= POPCNT(vert);
     }
     board->colorbb[BOTH] ^= board->piecebb[ROOK];
-    return of_value * 20;
+    return of_value * 10;
 }
 
 /**
@@ -296,15 +296,15 @@ int king_aggression(const Board *board, U64 allies, U64 enemies)
     ka_value = 0;
     while (allies) {
         i = board_pullbit(&allies);
-        moves = tables.king_moves[i] & board->colorbb[board->side ^ 1];
+        moves = tables.king_moves[i] & ~board->colorbb[board->side];
         ka_value += POPCNT(moves);
     }
     while (enemies) {
         i = board_pullbit(&enemies);
-        moves = tables.king_moves[i] & board->colorbb[board->side];
+        moves = tables.king_moves[i] & ~board->colorbb[board->side ^ 1];
         ka_value -= POPCNT(moves);
     }
-    return ka_value * 80;
+    return ka_value * 10;
 }
 
 /**
@@ -356,6 +356,10 @@ int bishop_score(Board *board)
 
     b_value = square_bonus(board, BISHOP, bishop_pst);
     b_value += long_diagonal(board, allies, enemies);
+    if (POPCNT(allies) > 1)
+        b_value += 40;
+    if (POPCNT(enemies) > 1)
+        b_value -= 40;
     return b_value;
 }
 
