@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "eval.h"
 
 static const int values[] = {0, 100, 325, 325, 500, 975};
@@ -267,20 +269,25 @@ int open_file(Board *board, U64 allies, U64 enemies)
 {
     int i, of_value;
     U64 vert;
+    U64 ally_pawns, enemy_pawns;
+
+    ally_pawns = board->piecebb[PAWN] & board->colorbb[board->side];
+    enemy_pawns = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
 
     of_value = 0;
-    board->colorbb[BOTH] ^= board->piecebb[ROOK];
+    board->colorbb[BOTH] ^= enemy_pawns;
     while (allies) {
         i = board_pullbit(&allies);
         vert = board_slide090(board, i) & ~board->colorbb[board->side];
         of_value += POPCNT(vert);
     }
+    board->colorbb[BOTH] ^= ally_pawns | enemy_pawns;
     while (enemies) {
         i = board_pullbit(&enemies);
         vert = board_slide090(board, i) & ~board->colorbb[board->side ^ 1];
         of_value -= POPCNT(vert);
     }
-    board->colorbb[BOTH] ^= board->piecebb[ROOK];
+    board->colorbb[BOTH] ^= ally_pawns;
     return of_value * 10;
 }
 
