@@ -1,6 +1,7 @@
-#include <stdlib.h>
-
 #include "eval.h"
+
+#define CROSS(b, i) (board_slide000(b, i) | board_slide090(b, i))
+#define DIAG(b, i) (board_slide045(b, i) | board_slide135(b, i))
 
 static const int values[] = {0, 100, 325, 325, 500, 975};
 static const int gamephase_inc[] = {0, 0, 1, 1, 2, 4, 0};
@@ -10,7 +11,7 @@ static const int pawn_pst[] = {
     30, 30, 30,  30,  30, 30, 30, 30,
     10, 10, 15,  20,  20, 15, 10, 10,
      5,  5, 10,  15,  15, 10,  5,  5,
-     0,  0,  0,  10,  10,  0,  0,  0,
+     0,  0,  0,  15,  15,  0,  0,  0,
      0,  0,  0,   0,   0,  0,  0,  0,
      5,  5,  5, -10, -10,  5,  5,  5,
      0,  0,  0,   0,   0,  0,  0,  0,
@@ -292,6 +293,35 @@ int open_file(Board *board, U64 allies, U64 enemies)
 }
 
 /**
+ * queen_threats
+ *  give a bonus based on the number of pieces a queen is threatening
+ */
+int queen_threats(const Board *board, U64 allies, U64 enemies)
+{
+    int i, qt_value;
+    U64 threats;
+    U64 ally_targets, enemy_targets;
+
+    ally_targets = board->colorbb[board->side] & ~board->piecebb[QUEEN];
+    enemy_targets = board->colorbb[board->side ^ 1] & ~board->piecebb[QUEEN];
+
+    qt_value = 0;
+    while (allies) {
+        i = board_pullbit(&allies);
+        threats = CROSS(board, i) | DIAG(board, i);
+        threats &= enemy_targets;
+        qt_value += POPCNT(threats);
+    }
+    while (enemies) {
+        i = board_pullbit(&enemies);
+        threats = CROSS(board, i) | DIAG(board, i);
+        threats &= ally_targets;
+        qt_value -= POPCNT(threats);
+    }
+    return qt_value * 10;
+}
+
+/**
  * king_aggression
  *  give a bonus for an aggressive king as the game progresses
  */
@@ -400,6 +430,7 @@ int queen_score(Board *board)
     enemies = board->piecebb[QUEEN] & board->colorbb[board->side ^ 1];
 
     q_value = square_bonus(board, QUEEN, queen_pst);
+    q_value += queen_threats(board, allies, enemies);
     return q_value;
 }
 
