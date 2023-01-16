@@ -223,6 +223,7 @@ void search_driver(Board *board, SearchInfo *sinfo)
         board_printmove(best_move);
         printf(" depth %d time %llu nodes %llu\n",
                depth, search_gettimems() - sinfo->tstart, sinfo->nodes);
+
         if (alpha == WON || alpha == LOST)
             break;
     }

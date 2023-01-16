@@ -5,6 +5,7 @@
 
 extern Tables tables;
 
+void eval_init_pst(void);
 int eval_heuristic(Board *board);
 
 #endif  /* EVAL_H */

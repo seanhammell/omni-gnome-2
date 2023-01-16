@@ -1,475 +1,235 @@
+/**
+ * The evaluation used is PeSTO's Evaluation Function
+ * https://www.chessprogramming.org/PeSTO%27s_Evaluation_Function
+ */
 #include "eval.h"
 
-#define CROSS(b, i) (board_slide000(b, i) | board_slide090(b, i))
-#define DIAG(b, i) (board_slide045(b, i) | board_slide135(b, i))
+static const int mg_values[] = {0, 82, 337, 365, 477, 1025, 0};
+static const int eg_values[] = {0, 94, 281, 297, 512, 936, 0};
 
-static const int values[] = {0, 100, 325, 325, 500, 975};
-static const int gamephase_inc[] = {0, 0, 1, 1, 2, 4, 0};
+static const int empty_pst[64];
 
-static const int pawn_pst[] = {
-     0,  0,  0,   0,   0,  0,  0,  0,
-    30, 30, 30,  30,  30, 30, 30, 30,
-    10, 10, 15,  20,  20, 15, 10, 10,
-     5,  5, 10,  15,  15, 10,  5,  5,
-     0,  0,  0,  15,  15,  0,  0,  0,
-     0,  0,  0,   0,   0,  0,  0,  0,
-     5,  5,  5, -10, -10,  5,  5,  5,
-     0,  0,  0,   0,   0,  0,  0,  0,
+static const int mg_pawn_pst[] = {
+      0,   0,   0,   0,   0,   0,  0,   0,
+     98, 134,  61,  95,  68, 126, 34, -11,
+     -6,   7,  26,  31,  65,  56, 25, -20,
+    -14,  13,   6,  21,  23,  12, 17, -23,
+    -27,  -2,  -5,  12,  17,   6, 10, -25,
+    -26,  -4,  -4, -10,   3,   3, 33, -12,
+    -35,  -1, -20, -23, -15,  24, 38, -22,
+      0,   0,   0,   0,   0,   0,  0,   0,
 };
 
-static const int outpost_squares[] = {
-    0, 0, 0, 0, 0, 0, 0, 0,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
+static const int eg_pawn_pst[] = {
+      0,   0,   0,   0,   0,   0,   0,   0,
+    178, 173, 158, 134, 147, 132, 165, 187,
+     94, 100,  85,  67,  56,  53,  82,  84,
+     32,  24,  13,   5,  -2,   4,  17,  17,
+     13,   9,  -3,  -7,  -7,  -8,   3,  -1,
+      4,   7,  -6,   1,   0,  -5,  -1,  -8,
+     13,   8,   8,  10,  13,   0,   2,  -7,
+      0,   0,   0,   0,   0,   0,   0,   0,
 };
 
-static const int knight_pst[] = {
-    -25, -20, -15, -15, -15, -15, -20,  -25,
-    -20, -10,   0,   0,   0,   0, -10,  -15,
-    -15,   0,  20,  30,  30,  20,   0,  -15,
-    -15,   0,  30,  40,  40,  30,   0,  -15,
-    -15,   0,  30,  40,  40,  30,   0,  -15,
-    -15,   0,  20,  30,  30,  20,   0,  -15,
-    -20, -10,   0,   5,   5,   0, -10,  -20,
-    -25, -20, -15, -15, -15, -15, -20,  -25,
+static const int mg_knight_pst[] = {
+    -167, -89, -34, -49,  61, -97, -15, -107,
+     -73, -41,  72,  36,  23,  62,   7,  -17,
+     -47,  60,  37,  65,  84, 129,  73,   44,
+      -9,  17,  19,  53,  37,  69,  18,   22,
+     -13,   4,  16,  13,  28,  19,  21,   -8,
+     -23,  -9,  12,  10,  19,  17,  25,  -16,
+     -29, -53, -12,  -3,  -1,  18, -14,  -19,
+    -105, -21, -58, -33, -17, -28, -19,  -23,
 };
 
-static const int bishop_pst[] = {
-    -20, -10, -10, -10, -10, -10, -10, -20,
-    -10,   0,   0,   0,   0,   0,   0, -10,
-    -10,   0,   5,  10,  10,   5,   0, -10,
-    -10,   0,   5,  10,  10,   5,   0, -10,
-    -10,   0,  10,  10,  10,  10,   0, -10,
-    -10,  10,  10,  10,  10,  10,  10, -10,
-    -10,   5,   0,   0,   0,   0,   5, -10,
-    -20, -10, -10, -10, -10, -10, -10, -20,
+static const int eg_knight_pst[] = {
+    -58, -38, -13, -28, -31, -27, -63, -99,
+    -25,  -8, -25,  -2,  -9, -25, -24, -52,
+    -24, -20,  10,   9,  -1,  -9, -19, -41,
+    -17,   3,  22,  22,  22,  11,   8, -18,
+    -18,  -6,  16,  25,  16,  17,   4, -18,
+    -23,  -3,  -1,  15,  10,  -3, -20, -22,
+    -42, -20, -10,  -5,  -2, -20, -23, -44,
+    -29, -51, -23, -15, -22, -18, -50, -64,
 };
 
-static const int rook_pst[] = {
-     0,  0,  0,  0,  0,  0,  0,  0,
-     5, 10, 10, 10, 10, 10, 10,  5,
-     5,  0,  0,  0,  0,  0,  0,  5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-     0,  0,  0,  5,  5,  0,  0,  0,
+static const int mg_bishop_pst[] = {
+    -29,   4, -82, -37, -25, -42,   7,  -8,
+    -26,  16, -18, -13,  30,  59,  18, -47,
+    -16,  37,  43,  40,  35,  50,  37,  -2,
+     -4,   5,  19,  50,  37,  37,   7,  -2,
+     -6,  13,  13,  26,  34,  12,  10,   4,
+      0,  15,  15,  15,  14,  27,  18,  10,
+      4,  15,  16,   0,   7,  21,  33,   1,
+    -33,  -3, -14, -21, -13, -12, -39, -21,
 };
 
-static const int queen_pst[] = {
-    -20, -10, -10, -5, -5, -10, -10, -20,
-      0,  10,  10, 10, 10,  10,  10,   0,
-    -10,   0,   5,  5,  5,   5,   0, -10,
-     -5,   0,   5,  5,  5,   5,   0,  -5,
-     -5,   0,   5,  5,  5,   5,   0,  -5,
-    -10,   5,   5,  5,  5,   5,   0, -10,
-    -10,   0,   5,  0,  0,   0,   0, -10,
-    -20, -10, -10, -5, -5, -10, -10, -20,
+static const int eg_bishop_pst[] = {
+    -14, -21, -11,  -8, -7,  -9, -17, -24,
+     -8,  -4,   7, -12, -3, -13,  -4, -14,
+      2,  -8,   0,  -1, -2,   6,   0,   4,
+     -3,   9,  12,   9, 14,  10,   3,   2,
+     -6,   3,  13,  19,  7,  10,  -3,  -9,
+    -12,  -3,   8,  10, 13,   3,  -7, -15,
+    -14, -18,  -7,  -1,  4,  -9, -15, -27,
+    -23,  -9, -23,  -5, -9, -16,  -5, -17,
 };
 
-static const int king_mg_pst[] = {
-    -30, -40, -40, -50, -50, -40, -40, -30,
-    -30, -40, -40, -50, -50, -40, -40, -30,
-    -30, -40, -40, -50, -50, -40, -40, -30,
-    -30, -40, -40, -50, -50, -40, -40, -30,
-    -20, -30, -30, -40, -40, -30, -30, -20,
-    -10, -20, -20, -20, -20, -20, -20, -10,
-     10,  10,   0,   0,   0,   0,  10,  10,
-     10,  30,   5,   0,   0,   5,  30,  10,
+static const int mg_rook_pst[] = {
+     32,  42,  32,  51, 63,  9,  31,  43,
+     27,  32,  58,  62, 80, 67,  26,  44,
+     -5,  19,  26,  36, 17, 45,  61,  16,
+    -24, -11,   7,  26, 24, 35,  -8, -20,
+    -36, -26, -12,  -1,  9, -7,   6, -23,
+    -45, -25, -16, -17,  3,  0,  -5, -33,
+    -44, -16, -20,  -9, -1, 11,  -6, -71,
+    -19, -13,   1,  17, 16,  7, -37, -26,
 };
 
-static const int king_eg_pst[] = {
-    -25, -20, -15, -15, -15, -15, -20, -25,
-    -20, -10,   0,   0,   0,   0, -10, -15,
-    -15,   0,  10,  15,  15,  10,   0, -15,
-    -15,   0,  15,  20,  20,  15,   0, -15,
-    -15,   0,  15,  20,  20,  15,   0, -15,
-    -15,   0,  10,  15,  15,  10,   0, -15,
-    -20, -10,   0,   5,   5,   0, -10, -20,
-    -25, -20, -15, -15, -15, -15, -20, -25,
+static const int eg_rook_pst[] = {
+    13, 10, 18, 15, 12,  12,   8,   5,
+    11, 13, 13, 11, -3,   3,   8,   3,
+     7,  7,  7,  5,  4,  -3,  -5,  -3,
+     4,  3, 13,  1,  2,   1,  -1,   2,
+     3,  5,  8,  4, -5,  -6,  -8, -11,
+    -4,  0, -5, -1, -7, -12,  -8, -16,
+    -6, -6,  0,  2, -9,  -9, -11,  -3,
+    -9,  2,  3, -1, -5, -13,   4, -20,
 };
 
-static int gamephase;
+static const int mg_queen_pst[] = {
+    -28,   0,  29,  12,  59,  44,  43,  45,
+    -24, -39,  -5,   1, -16,  57,  28,  54,
+    -13, -17,   7,   8,  29,  56,  47,  57,
+    -27, -27, -16, -16,  -1,  17,  -2,   1,
+     -9, -26,  -9, -10,  -2,  -4,   3,  -3,
+    -14,   2, -11,  -2,  -5,   2,  14,   5,
+    -35,  -8,  11,   2,   8,  15,  -3,   1,
+     -1, -18,  -9,  10, -15, -25, -31, -50,
+};
+
+static const int eg_queen_pst[] = {
+     -9,  22,  22,  27,  27,  19,  10,  20,
+    -17,  20,  32,  41,  58,  25,  30,   0,
+    -20,   6,   9,  49,  47,  35,  19,   9,
+      3,  22,  24,  45,  57,  40,  57,  36,
+    -18,  28,  19,  47,  31,  34,  39,  23,
+    -16, -27,  15,   6,   9,  17,  10,   5,
+    -22, -23, -30, -16, -16, -23, -36, -32,
+    -33, -28, -22, -43,  -5, -32, -20, -41,
+};
+
+static const int mg_king_pst[] = {
+    -65,  23,  16, -15, -56, -34,   2,  13,
+     29,  -1, -20,  -7,  -8,  -4, -38, -29,
+     -9,  24,   2, -16, -20,   6,  22, -22,
+    -17, -20, -12, -27, -30, -25, -14, -36,
+    -49,  -1, -27, -39, -46, -44, -33, -51,
+    -14, -14, -22, -46, -44, -30, -15, -27,
+      1,   7,  -8, -64, -43, -16,   9,   8,
+    -15,  36,  12, -54,   8, -28,  24,  14,
+};
+
+static const int eg_king_pst[] = {
+    -74, -35, -18, -18, -11,  15,   4, -17,
+    -12,  17,  14,  17,  17,  38,  23,  11,
+     10,  17,  23,  15,  20,  45,  44,  13,
+     -8,  22,  24,  27,  26,  33,  26,   3,
+    -18,  -4,  21,  24,  27,  23,   9, -11,
+    -19,  -3,  11,  21,  23,  16,   7,  -9,
+    -27, -11,   4,  13,  14,   4,  -5, -17,
+    -53, -34, -21, -11, -28, -14, -24, -43
+};
+
+static const int *mg_pst_table[] = {
+    empty_pst,
+    mg_pawn_pst,
+    mg_knight_pst,
+    mg_bishop_pst,
+    mg_rook_pst,
+    mg_queen_pst,
+    mg_king_pst,
+};
+
+static const int *eg_pst_table[] = {
+    empty_pst,
+    eg_pawn_pst,
+    eg_knight_pst,
+    eg_bishop_pst,
+    eg_rook_pst,
+    eg_queen_pst,
+    eg_king_pst,
+};
+
+static const int game_phase_inc[] = {0, 0, 1, 1, 2, 4, 0};
+
+static int mg_table[14][64];
+static int eg_table[14][64];
 
 /**
- * material_value
- *  calculate the material difference between sides
+ * eval_init_pst
+ *  initialize the tables holding the piece-square tables specific to piece
+ *  type and color
  */
-int material_value(const Board *board)
+void eval_init_pst(void)
 {
-    int i, m_value;
-    U64 allybb, ally_pop;
-    U64 enemybb, enemy_pop;
+    int p, sq;
 
-    m_value = gamephase = 0;
-    for (i = 1; i < 7; ++i) {
-        allybb = board->piecebb[i] & board->colorbb[board->side];
-        enemybb = board->piecebb[i] & board->colorbb[board->side ^ 1];
-        m_value += POPCNT(allybb) * values[i];
-        m_value -= POPCNT(enemybb) * values[i];
-        gamephase += POPCNT(board->piecebb[i]) * gamephase_inc[i];
+    for (p = 1; p < 7; ++p) {
+        for (sq = 0; sq < 64; ++sq) {
+            mg_table[p][sq] = mg_values[p] + mg_pst_table[p][sq ^ 56];
+            eg_table[p][sq] = eg_values[p] + eg_pst_table[p][sq ^ 56];
+            mg_table[p + 7][sq] = mg_values[p] + mg_pst_table[p][sq];
+            eg_table[p + 7][sq] = eg_values[p] + eg_pst_table[p][sq];
+        }
     }
-    return m_value;
-}
-
-/**
- * square_bonus
- *  give bonuses to pieces depending on which square they are standing on
- */
-int square_bonus(const Board *board, const int piece_type, const int *pst)
-{
-    int i, ally_flip, enemy_flip;
-    int sq_bonus;
-    U64 allies, enemies;
-
-    allies = board->piecebb[piece_type] & board->colorbb[board->side];
-    enemies = board->piecebb[piece_type] & board->colorbb[board->side ^ 1];
-
-    ally_flip = board->side == WHITE ? 56 : 0;
-    enemy_flip = board->side == WHITE ? 0 : 56;
-
-    sq_bonus = 0;
-    while (allies) {
-        i = board_pullbit(&allies) ^ ally_flip;
-        sq_bonus += pst[i];
-    }
-    while (enemies) {
-        i = board_pullbit(&enemies) ^ enemy_flip;
-        sq_bonus -= pst[i];
-    }
-    return sq_bonus;
-}
-
-/**
- * blocked_pawns
- *  give penalties to each side for blocked pawns
- */
-int blocked_pawns(const Board *board, U64 allies, U64 enemies)
-{
-    int b_value;
-    U64 allies_push, enemies_push;
-
-    if (board->side == WHITE) {
-        allies_push = (allies << 8) & ~board->colorbb[BOTH];
-        enemies_push = (enemies >> 8) & ~board->colorbb[BOTH];
-    } else {
-        allies_push = (allies >> 8) & ~board->colorbb[BOTH];
-        enemies_push = (enemies << 8) & ~board->colorbb[BOTH];
-    }
-    b_value = POPCNT(allies) - POPCNT(allies_push);
-    b_value += POPCNT(enemies) - POPCNT(enemies_push);
-    return b_value * 10;
-}
-
-/**
- * doubled_isolated_pawns
- *  give penalties to each side for doubled or isolated pawns
- */
-int doubled_isolated_pawns(const Board *board, U64 allies, U64 enemies)
-{
-    int i;
-    int file_allies, file_enemies;
-    int di_value;
-    U64 file, left, right;
-
-    di_value = 0;
-    for (i = 0; i < 8; ++i) {
-        file = tables.file_masks[i];
-        file_allies = POPCNT(allies & file);
-        file_enemies = POPCNT(enemies & file);
-        if (file_allies > 1)
-            di_value -= file_allies;
-        if (file_enemies > 1)
-            di_value += file_enemies;
-
-        left = i > 0 ? tables.file_masks[i - 1] : 0;
-        right = i < 7 ? tables.file_masks[i + 1] : 0;
-        if (!(allies & (left | right)))
-            di_value -= file_allies;
-        if (!(enemies & (left | right)))
-            di_value += file_enemies;
-    }
-    return di_value * 10;
-}
-
-/**
- * knight_outpost
- *  give a bonus for protected knights on outpost squares
- */
-int knight_outpost(const Board *board, U64 allies, U64 enemies)
-{
-    int i, no_value;
-    int ally_flip, enemy_flip;
-    U64 ally_pawns, enemy_pawns;
-    U64 defenders, attackers;
-
-    ally_pawns = board->piecebb[PAWN] & board->colorbb[board->side];
-    enemy_pawns = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
-
-    ally_flip = board->side == WHITE ? 56 : 0;
-    enemy_flip = board->side == WHITE ? 0 : 56;
-
-    no_value = 0;
-    while (allies) {
-        i = board_pullbit(&allies);
-        if (!outpost_squares[i ^ ally_flip])
-            break;
-        defenders = ally_pawns & tables.pawn_caps[board->side ^ 1][i];
-        attackers = enemy_pawns & tables.pawn_caps[board->side][i];
-        if (defenders && !attackers)
-            ++no_value;
-    }
-    while (enemies) {
-        i = board_pullbit(&enemies);
-        if (!outpost_squares[i ^ enemy_flip])
-            break;
-        defenders = enemy_pawns & tables.pawn_caps[board->side][i];
-        attackers = ally_pawns & tables.pawn_caps[board->side ^ 1][i];
-        if (defenders && !attackers)
-            --no_value;
-    }
-    return no_value * 10;
-}
-
-#define MAX(a, b)   (a > b ? a : b)
-/**
- * long_diagonal
- *  give a bonus for bishops on long, open diagonals
- */
-int long_diagonal(Board *board, U64 allies, U64 enemies)
-{
-    int i, ld_value;
-    U64 m_diag, a_diag;
-
-    ld_value = 0;
-    while (allies) {
-        i = board_pullbit(&allies);
-        m_diag = board_slide045(board, i) & ~board->colorbb[board->side];
-        a_diag = board_slide135(board, i) & ~board->colorbb[board->side];
-        ld_value += MAX(POPCNT(m_diag), POPCNT(a_diag));
-    }
-    while (enemies) {
-        i = board_pullbit(&enemies);
-        m_diag = board_slide045(board, i) & ~board->colorbb[board->side ^ 1];
-        a_diag = board_slide135(board, i) & ~board->colorbb[board->side ^ 1];
-        ld_value -= MAX(POPCNT(m_diag), POPCNT(a_diag));
-    }
-    return ld_value * 10;
-}
-
-/**
- * open_file
- *  give a bonus for rooks on open files
- */
-int open_file(Board *board, U64 allies, U64 enemies)
-{
-    int i, of_value;
-    U64 vert;
-    U64 ally_pawns, enemy_pawns;
-
-    ally_pawns = board->piecebb[PAWN] & board->colorbb[board->side];
-    enemy_pawns = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
-
-    of_value = 0;
-    board->colorbb[BOTH] ^= enemy_pawns;
-    while (allies) {
-        i = board_pullbit(&allies);
-        vert = board_slide090(board, i) & ~board->colorbb[board->side];
-        of_value += POPCNT(vert);
-    }
-    board->colorbb[BOTH] ^= ally_pawns | enemy_pawns;
-    while (enemies) {
-        i = board_pullbit(&enemies);
-        vert = board_slide090(board, i) & ~board->colorbb[board->side ^ 1];
-        of_value -= POPCNT(vert);
-    }
-    board->colorbb[BOTH] ^= ally_pawns;
-    return of_value * 10;
-}
-
-/**
- * queen_threats
- *  give a bonus based on the number of pieces a queen is threatening
- */
-int queen_threats(const Board *board, U64 allies, U64 enemies)
-{
-    int i, qt_value;
-    U64 threats;
-    U64 ally_targets, enemy_targets;
-
-    ally_targets = board->colorbb[board->side] & ~board->piecebb[QUEEN];
-    enemy_targets = board->colorbb[board->side ^ 1] & ~board->piecebb[QUEEN];
-
-    qt_value = 0;
-    while (allies) {
-        i = board_pullbit(&allies);
-        threats = CROSS(board, i) | DIAG(board, i);
-        threats &= enemy_targets;
-        qt_value += POPCNT(threats);
-    }
-    while (enemies) {
-        i = board_pullbit(&enemies);
-        threats = CROSS(board, i) | DIAG(board, i);
-        threats &= ally_targets;
-        qt_value -= POPCNT(threats);
-    }
-    return qt_value * 10;
-}
-
-/**
- * king_aggression
- *  give a bonus for an aggressive king as the game progresses
- */
-int king_aggression(const Board *board, U64 allies, U64 enemies)
-{
-    int i, ka_value;
-    U64 moves;
-
-    ka_value = 0;
-    while (allies) {
-        i = board_pullbit(&allies);
-        moves = tables.king_moves[i] & ~board->colorbb[board->side];
-        ka_value += POPCNT(moves);
-    }
-    while (enemies) {
-        i = board_pullbit(&enemies);
-        moves = tables.king_moves[i] & ~board->colorbb[board->side ^ 1];
-        ka_value -= POPCNT(moves);
-    }
-    return ka_value * 10;
-}
-
-/**
- * pawn_score
- *  evaluate pawns based on standing and structure
- */
-int pawn_score(const Board *board)
-{
-    int p_value;
-    U64 allies, enemies;
-
-    allies = board->piecebb[PAWN] & board->colorbb[board->side];
-    enemies = board->piecebb[PAWN] & board->colorbb[board->side ^ 1];
-
-    p_value = square_bonus(board, PAWN, pawn_pst);
-    p_value += blocked_pawns(board, allies, enemies);
-    p_value += doubled_isolated_pawns(board, allies, enemies);
-    return p_value;
-}
-
-/**
- * knight_score
- *  evaluate knights based on standing and mobility
- */
-int knight_score(const Board *board)
-{
-    int n_value;
-    U64 allies, enemies;
-
-    allies = board->piecebb[KNIGHT] & board->colorbb[board->side];
-    enemies = board->piecebb[KNIGHT] & board->colorbb[board->side ^ 1];
-
-    n_value = square_bonus(board, KNIGHT, knight_pst);
-    n_value += knight_outpost(board, allies, enemies);
-    return n_value;
-}
-
-/**
- * bishop_score
- *  evaluate bishops based on standing and diagonal control
- */
-int bishop_score(Board *board)
-{
-    int b_value;
-    U64 allies, enemies;
-
-    allies = board->piecebb[BISHOP] & board->colorbb[board->side];
-    enemies = board->piecebb[BISHOP] & board->colorbb[board->side ^ 1];
-
-    b_value = square_bonus(board, BISHOP, bishop_pst);
-    b_value += long_diagonal(board, allies, enemies);
-    if (POPCNT(allies) > 1)
-        b_value += 40;
-    if (POPCNT(enemies) > 1)
-        b_value -= 40;
-    return b_value;
-}
-
-/**
- * rook_score
- *  evaluate rooks based on standing and file control
- */
-int rook_score(Board *board)
-{
-    int r_value;
-    U64 allies, enemies;
-
-    allies = board->piecebb[ROOK] & board->colorbb[board->side];
-    enemies = board->piecebb[ROOK] & board->colorbb[board->side ^ 1];
-
-    r_value = square_bonus(board, ROOK, rook_pst);
-    r_value += open_file(board, allies, enemies);
-    return r_value;
-}
-
-/**
- * queen_score
- *  evaluate queens based on standing
- */
-int queen_score(Board *board)
-{
-    int q_value;
-    U64 allies, enemies;
-
-    allies = board->piecebb[QUEEN] & board->colorbb[board->side];
-    enemies = board->piecebb[QUEEN] & board->colorbb[board->side ^ 1];
-
-    q_value = square_bonus(board, QUEEN, queen_pst);
-    q_value += queen_threats(board, allies, enemies);
-    return q_value;
-}
-
-/**
- * king_score
- *  evaluate kings based on safety or centralization for the middle and end
- *  game respectively
- */
-int king_score(Board *board)
-{
-    int k_mg_value, k_eg_value;
-    int mg_phase, eg_phase;
-    U64 allies, enemies;
-
-    allies = board->piecebb[KING] & board->colorbb[board->side];
-    enemies = board->piecebb[KING] & board->colorbb[board->side ^ 1];
-
-    k_mg_value = square_bonus(board, KING, king_mg_pst);
-    k_eg_value = square_bonus(board, KING, king_eg_pst);
-    k_eg_value += king_aggression(board, allies, enemies);
-    mg_phase = gamephase > 24 ? 24 : gamephase;
-    eg_phase = 24 - mg_phase;
-    return (k_mg_value * mg_phase + k_eg_value * eg_phase) / 24;
 }
 
 /**
  * eval_heuristic
- *  evaluate the current board position
+ *  give the current board position a score relative to the side to move
  */
 int eval_heuristic(Board *board)
 {
-    int eval;
+    int i, j;
+    int ally_color, enemy_color;
+    int mg_score, eg_score;
+    int game_phase, mg_phase, eg_phase;
+    U64 allies, enemies, piecebb;
 
-    eval = material_value(board);
-    eval += pawn_score(board);
-    eval += knight_score(board);
-    eval += bishop_score(board);
-    eval += rook_score(board);
-    eval += queen_score(board);
-    eval += king_score(board);
-    return eval;
+    if (board->side == WHITE) {
+        ally_color = 0;
+        enemy_color = 7;
+    } else {
+        ally_color = 7;
+        enemy_color = 0;
+    }
+
+    mg_score = 0;
+    eg_score = 0;
+    game_phase = 0;
+
+    allies = board->colorbb[board->side];
+    enemies = board->colorbb[board->side ^ 1];
+
+    for (i = 1; i < 7; ++i) {
+        piecebb = board->piecebb[i] & allies;
+        while (piecebb) {
+            j = board_pullbit(&piecebb);
+            mg_score += mg_table[i + ally_color][j];
+            eg_score += eg_table[i + ally_color][j];
+            game_phase += game_phase_inc[i];
+        }
+        piecebb = board->piecebb[i] & enemies;
+        while (piecebb) {
+            j = board_pullbit(&piecebb);
+            mg_score -= mg_table[i + enemy_color][j];
+            eg_score -= eg_table[i + enemy_color][j];
+            game_phase += game_phase_inc[i];
+        }
+    }
+
+    mg_phase = game_phase > 24 ? 24 : game_phase;
+    eg_phase = 24 - mg_phase;
+    return (mg_score * mg_phase + eg_score * eg_phase) / 24;
 }
