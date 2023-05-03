@@ -4,4 +4,4 @@ Omni-Gnome 2 is a UCI-compatible chess engine with an estimated elo rating of ~1
 
 Below is a sample game played between Omni-Gnome 2 (white) and the Fairy-Max 5.0 engine (black), which has a rating of ~1950.
 
-https://user-images.githubusercontent.com/95873993/236072326-9d1df0a9-4de2-4c25-ab58-bf2c3ea4ff3a.mp4
+https://user-images.githubusercontent.com/95873993/236072624-5178d502-9de9-433a-aca3-b122abcfe995.mp4
